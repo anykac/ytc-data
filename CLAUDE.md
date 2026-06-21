@@ -29,6 +29,65 @@ Always read these before making implementation decisions:
 - **Supervisor** — dashboard + admin via Google OAuth session
 - **Admin** — account/role management via Google OAuth session
 
+## Git & PR Workflow
+
+**All code changes must go through a PR — never commit directly to `main`.**
+
+This applies to every task, including small fixes. Both developers (Anyka and Ryo) follow the same flow.
+
+### Starting work on a task
+
+1. Make sure local `main` is up to date with GitHub before branching:
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+2. Create a feature branch named after the milestone/task:
+   ```bash
+   git checkout -b feature/m2-auth-layer
+   ```
+   Use kebab-case: `feature/m3-entry-form`, `feature/m4-admin-crud`, `feature/m5-dashboard`, etc.
+
+### During work
+
+Commit frequently to the feature branch — one commit per logical step is fine. Never commit to `main`.
+
+### When the task is complete
+
+1. Push the branch to GitHub:
+   ```bash
+   git push -u origin feature/m2-auth-layer
+   ```
+2. Create a PR using the GitHub CLI (use PowerShell — `gh` is not available in Bash on this machine):
+   ```powershell
+   $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+   gh pr create --title "M2: Auth Layer" --base main --head feature/m2-auth-layer --body "..."
+   ```
+3. **Tell the developer:** "PR is ready for review at `<URL>`. Share the link with your collaborator before merging."
+4. **Do not merge the PR yourself.** Wait for the developer to confirm review is done.
+
+### After the PR is merged on GitHub
+
+Pull `main` locally so the next branch starts from the merged state:
+```bash
+git checkout main
+git pull origin main
+```
+
+### Branch naming convention
+
+| Milestone | Branch name |
+|---|---|
+| M1 | `feature/m1-scaffold-database` |
+| M2 | `feature/m2-auth-layer` |
+| M3 | `feature/m3-entry-form` |
+| M4 | `feature/m4-admin-crud` |
+| M5 | `feature/m5-dashboard` |
+| M6 | `feature/m6-deploy` |
+| Hotfixes | `fix/short-description` |
+
+---
+
 ## Living Documentation Rules
 
 - **After completing any task:** check it off in `project_docs/YTC_implementation_plan.md` (mark the `- [ ]` steps as `- [x]`).
