@@ -107,7 +107,7 @@ Tasks can run in parallel after **M1 and M2 are complete**.
 - Modify: root directory (scaffolds all Next.js files)
 - Create: `.env.example`, `.env.local`, `jest.config.ts`
 
-- [ ] **Scaffold Next.js in the existing repo root**
+- [x] **Scaffold Next.js in the existing repo root**
 
 ```bash
 npx create-next-app@latest . --typescript --tailwind --app --no-src-dir --import-alias "@/*" --eslint
@@ -115,14 +115,14 @@ npx create-next-app@latest . --typescript --tailwind --app --no-src-dir --import
 
 When prompted: say Yes to all defaults. This will scaffold into the current directory.
 
-- [ ] **Install runtime dependencies**
+- [x] **Install runtime dependencies**
 
 ```bash
 npm install @supabase/ssr @supabase/supabase-js bcryptjs
 npm install -D @types/bcryptjs supabase jest ts-jest @types/jest jest-environment-node
 ```
 
-- [ ] **Create `jest.config.ts`**
+- [x] **Create `jest.config.ts`**
 
 ```typescript
 import type { Config } from 'jest'
@@ -139,7 +139,7 @@ const config: Config = {
 export default config
 ```
 
-- [ ] **Create `.env.example`** (commit this)
+- [x] **Create `.env.example`** (commit this)
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -147,11 +147,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-- [ ] **Create `.env.local`** (never commit — add to `.gitignore` if not already there)
+- [x] **Create `.env.local`** (never commit — add to `.gitignore` if not already there)
 
 Fill in real values from the Supabase dashboard after Task 1.2.
 
-- [ ] **Add test script to `package.json`**
+- [x] **Add test script to `package.json`**
 
 ```json
 "scripts": {
@@ -160,7 +160,7 @@ Fill in real values from the Supabase dashboard after Task 1.2.
 }
 ```
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add -A
@@ -177,7 +177,7 @@ git commit -m "feat: scaffold Next.js project with Supabase and Jest"
 
 **Prerequisites:** Create a Supabase project at supabase.com. Copy the project URL, anon key, and service role key into `.env.local`.
 
-- [ ] **Initialise Supabase CLI**
+- [x] **Initialise Supabase CLI**
 
 ```bash
 npx supabase init
@@ -185,7 +185,7 @@ npx supabase login
 npx supabase link --project-ref YOUR_PROJECT_REF
 ```
 
-- [ ] **Create the migration file**
+- [x] **Create the migration file**
 
 ```bash
 npx supabase migration new initial_schema
@@ -324,7 +324,7 @@ CREATE POLICY "pl_select"  ON period_log       FOR SELECT USING (get_user_role()
 CREATE POLICY "ple_select" ON period_log_edits FOR SELECT USING (get_user_role() IN ('supervisor','admin'));
 ```
 
-- [ ] **Create `supabase/seed.sql`** (dev data — run manually, not in CI)
+- [x] **Create `supabase/seed.sql`** (dev data — run manually, not in CI)
 
 ```sql
 -- Seed 8 stations
@@ -342,7 +342,7 @@ INSERT INTO leads (name, password_hash) VALUES
 
 > **Note:** Generate the real hash by running `node -e "const b=require('bcryptjs'); console.log(b.hashSync('test1234',10))"` and pasting the output.
 
-- [ ] **Push migration to Supabase**
+- [x] **Push migration to Supabase**
 
 ```bash
 npx supabase db push
@@ -350,9 +350,9 @@ npx supabase db push
 
 Expected output: `Applying migration 20260621000000_initial_schema.sql... done`
 
-- [ ] **Verify schema in Supabase dashboard** — open Table Editor, confirm all 9 tables exist with correct columns.
+- [x] **Verify schema in Supabase dashboard** — open Table Editor, confirm all 9 tables exist with correct columns.
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add supabase/ .env.example jest.config.ts
@@ -366,15 +366,15 @@ git commit -m "feat: initial database schema with RLS policies"
 **Files:**
 - Create: `types/database.ts`
 
-- [ ] **Generate types from the live schema**
+- [x] **Generate types from the live schema**
 
 ```bash
 npx supabase gen types typescript --project-id YOUR_PROJECT_REF > types/database.ts
 ```
 
-- [ ] **Verify the file** — it should export a `Database` type with all 9 tables.
+- [x] **Verify the file** — it should export a `Database` type with all 9 tables.
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add types/database.ts

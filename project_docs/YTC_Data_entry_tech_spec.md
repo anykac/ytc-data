@@ -281,11 +281,11 @@ Line lead writes bypass RLS using the Supabase **service role key** (server-side
 - Daily plan targets per station (FR-3.2)
 - Historical spreadsheet data import
 - Per-order-line production attribution
-- YubiKey / FIDO2 auth upgrade
 
 ### Deferred to P2
 - CSV / Excel export (FR-2.7)
 - Automated daily plan setup (FR-3.2)
+- YubiKey / FIDO2 auth upgrade
 
 ---
 
