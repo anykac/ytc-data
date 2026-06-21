@@ -4,6 +4,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { hashPassword } from '@/lib/auth/lead-auth'
 import { revalidatePath } from 'next/cache'
 
+// ── Input validation ──────────────────────────────────────────────────────────
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function assertUuid(val: string, field: string) {
+  if (!UUID_RE.test(val)) throw new Error(`Invalid ${field}`)
+}
+
+function assertDate(val: string, field: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(val) || isNaN(Date.parse(val)))
+    throw new Error(`Invalid ${field}`)
+}
+
 // ── Stations ──────────────────────────────────────────────────────────────────
 
 export async function upsertStation(data: {
@@ -12,6 +25,7 @@ export async function upsertStation(data: {
   sequence: number
   active: boolean
 }) {
+  if (data.id) assertUuid(data.id, 'station id')
   await requireRole('supervisor')
   const supabase = createAdminClient()
 
@@ -38,6 +52,8 @@ export async function upsertModel(data: {
   active: boolean
   stationIds: string[]
 }) {
+  if (data.id) assertUuid(data.id, 'model id')
+  data.stationIds.forEach((id, i) => assertUuid(id, `stationIds[${i}]`))
   await requireRole('supervisor')
   const supabase = createAdminClient()
   let modelId = data.id
@@ -58,12 +74,8 @@ export async function upsertModel(data: {
     modelId = inserted.id
   }
 
-  const { error: deactivateError } = await supabase
-    .from('model_station_config')
-    .update({ active: false })
-    .eq('model_id', modelId!)
-  if (deactivateError) throw deactivateError
-
+  // Activate the selected stations first (non-destructive — if the deactivate below
+  // fails, the model still has its correct stations rather than having none at all)
   if (data.stationIds.length > 0) {
     const { error: upsertError } = await supabase.from('model_station_config').upsert(
       data.stationIds.map(stationId => ({ model_id: modelId!, station_id: stationId, active: true })),
@@ -71,6 +83,21 @@ export async function upsertModel(data: {
     )
     if (upsertError) throw upsertError
   }
+
+  // Deactivate configs not in the new selection — only on update (new models have no old rows)
+  if (data.id) {
+    const deactivateQuery = supabase
+      .from('model_station_config')
+      .update({ active: false })
+      .eq('model_id', modelId!)
+
+    const { error: deactivateError } = data.stationIds.length > 0
+      ? await deactivateQuery.not('station_id', 'in', `(${data.stationIds.join(',')})`)
+      : await deactivateQuery
+
+    if (deactivateError) throw deactivateError
+  }
+
   revalidatePath('/admin/models')
 }
 
@@ -84,11 +111,28 @@ export async function upsertOrder(data: {
   active: boolean
   lines: { modelId: string; quantity: number }[]
 }) {
+  if (data.id) assertUuid(data.id, 'order id')
+  assertDate(data.orderDate, 'orderDate')
+  assertDate(data.dueDate, 'dueDate')
+  if (data.dueDate < data.orderDate) throw new Error('dueDate must be on or after orderDate')
+  data.lines.forEach((l, i) => assertUuid(l.modelId, `lines[${i}].modelId`))
   await requireRole('supervisor')
   const supabase = createAdminClient()
-  let orderId = data.id
 
   if (data.id) {
+    const orderId = data.id
+
+    // Snapshot the IDs of currently active lines before touching anything.
+    // We deactivate by these specific IDs after inserting new ones, so a failed
+    // insert leaves the old lines intact rather than leaving the order empty.
+    const { data: currentLines, error: fetchError } = await supabase
+      .from('order_lines')
+      .select('id')
+      .eq('order_id', orderId)
+      .eq('active', true)
+    if (fetchError) throw fetchError
+    const oldLineIds = (currentLines ?? []).map(l => l.id)
+
     const { error } = await supabase
       .from('orders')
       .update({
@@ -97,15 +141,26 @@ export async function upsertOrder(data: {
         due_date: data.dueDate,
         active: data.active,
       })
-      .eq('id', data.id)
+      .eq('id', orderId)
     if (error) throw error
 
-    // Soft-deactivate existing lines before inserting the replacement set
-    const { error: deactivateError } = await supabase
-      .from('order_lines')
-      .update({ active: false })
-      .eq('order_id', data.id)
-    if (deactivateError) throw deactivateError
+    // Insert new lines before deactivating old ones — if the insert fails the
+    // order still has its previous lines active. Inactive rows are the audit trail;
+    // all order_lines queries must filter WHERE active = true.
+    if (data.lines.length > 0) {
+      const { error: insertError } = await supabase.from('order_lines').insert(
+        data.lines.map(l => ({ order_id: orderId, model_id: l.modelId, quantity: l.quantity, active: true }))
+      )
+      if (insertError) throw insertError
+    }
+
+    if (oldLineIds.length > 0) {
+      const { error: deactivateError } = await supabase
+        .from('order_lines')
+        .update({ active: false })
+        .in('id', oldLineIds)
+      if (deactivateError) throw deactivateError
+    }
   } else {
     const { data: inserted, error } = await supabase
       .from('orders')
@@ -118,15 +173,16 @@ export async function upsertOrder(data: {
       .select('id')
       .single()
     if (error) throw error
-    orderId = inserted.id
+    const orderId = inserted.id
+
+    if (data.lines.length > 0) {
+      const { error: insertError } = await supabase.from('order_lines').insert(
+        data.lines.map(l => ({ order_id: orderId, model_id: l.modelId, quantity: l.quantity, active: true }))
+      )
+      if (insertError) throw insertError
+    }
   }
 
-  if (data.lines.length > 0) {
-    const { error } = await supabase.from('order_lines').insert(
-      data.lines.map(l => ({ order_id: orderId!, model_id: l.modelId, quantity: l.quantity, active: true }))
-    )
-    if (error) throw error
-  }
   revalidatePath('/admin/orders')
 }
 
@@ -135,13 +191,17 @@ export async function upsertOrder(data: {
 export async function upsertLead(data: {
   id?: string
   name: string
+  // undefined = leave password unchanged; empty string throws; any non-empty string = set new password
   password?: string
   active: boolean
 }) {
+  if (data.id) assertUuid(data.id, 'lead id')
   await requireRole('supervisor')
   const supabase = createAdminClient()
 
   if (data.id) {
+    if (data.password !== undefined && data.password.length === 0)
+      throw new Error('Password cannot be empty — omit the field to leave it unchanged')
     const passwordHash = data.password ? await hashPassword(data.password) : undefined
     const { error } = await supabase.from('leads').update({
       name: data.name,
@@ -150,7 +210,8 @@ export async function upsertLead(data: {
     }).eq('id', data.id)
     if (error) throw error
   } else {
-    if (!data.password) throw new Error('Password required for new leads')
+    if (!data.password || data.password.length === 0)
+      throw new Error('Password required for new leads')
     const password_hash = await hashPassword(data.password)
     const { error } = await supabase
       .from('leads')
@@ -163,6 +224,7 @@ export async function upsertLead(data: {
 // ── User roles (Admin only) ───────────────────────────────────────────────────
 
 export async function setUserRole(userId: string, role: 'supervisor' | 'admin') {
+  assertUuid(userId, 'userId')
   await requireRole('admin')
   const supabase = createAdminClient()
   const { error } = await supabase
@@ -173,7 +235,9 @@ export async function setUserRole(userId: string, role: 'supervisor' | 'admin') 
 }
 
 export async function removeUserRole(userId: string) {
-  await requireRole('admin')
+  assertUuid(userId, 'userId')
+  const { user } = await requireRole('admin')
+  if (userId === user.id) throw new Error('Cannot remove your own admin role')
   const supabase = createAdminClient()
   const { error } = await supabase.from('user_roles').delete().eq('user_id', userId)
   if (error) throw error
