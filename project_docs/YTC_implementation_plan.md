@@ -1,0 +1,1814 @@
+# YTC Data Entry — P0 MVP Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Build the P0 MVP — a mobile-friendly production log entry form, daily summary + pipeline + model-progress dashboard, and admin CRUD — on Next.js + Supabase + Vercel with per-submission lead auth and Google OAuth for supervisors/admins.
+
+**Architecture:** Next.js 15 App Router, single repo deployed to Vercel. Supabase holds Postgres + Auth (Google OAuth for Supervisor/Admin) + Row-Level Security. Line leads authenticate per-submission via bcrypt server-side using the service role key — no session created. Supervisors/Admins get a full Google OAuth session via `@supabase/ssr`. All DB writes go through Next.js server actions; credentials never reach the browser.
+
+**Tech Stack:** Next.js 15 (App Router, TypeScript, Tailwind CSS), Supabase (Postgres + Auth + RLS), Vercel, bcryptjs, Jest + ts-jest
+
+---
+
+## Global Constraints
+
+- Next.js 15 App Router only — no Pages Router patterns
+- TypeScript strict mode — no `any` without comment
+- All DB writes use the **service role key** server-side only — never in `NEXT_PUBLIC_*` vars or client bundles
+- Use `bcryptjs` (not native `bcrypt`) — works without native bindings in Node and Edge
+- Tailwind CSS for styling — no external UI framework required, use freely for speed
+- `.env.local` for secrets — never commit to git; commit `.env.example` with placeholder values
+- Supabase free tier: stay under 500 MB DB storage, 50k MAU
+- Soft deletes only — never `DELETE` from `stations`, `models`, `orders`, `order_lines`, `leads`; set `active = false`
+- Valid periods: `'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6'` (enforced at DB level)
+- Valid roles: `'supervisor' | 'admin'` (line leads are in `leads` table, not `auth.users`)
+
+---
+
+## Dev Assignment Key
+
+- 🔵 **Anyka** — infrastructure, auth, server actions, DB queries
+- 🟢 **Ryo** — UI components, page layouts, dashboard views, admin tables
+
+Tasks can run in parallel after **M1 and M2 are complete**.
+
+---
+
+## File Map
+
+```
+├── supabase/
+│   ├── migrations/20260621000000_initial_schema.sql   🔵 Full schema + RLS
+│   └── seed.sql                                        🔵 Dev seed data
+├── types/
+│   └── database.ts                                     🔵 Supabase-generated types
+├── lib/
+│   ├── supabase/
+│   │   ├── client.ts                                   🔵 Browser client
+│   │   ├── server.ts                                   🔵 Server client (SSR cookies)
+│   │   └── admin.ts                                    🔵 Service role client
+│   ├── auth/
+│   │   ├── lead-auth.ts                                🔵 bcrypt validation + hashing
+│   │   └── session.ts                                  🔵 requireSession, requireRole helpers
+│   └── db/
+│       └── dashboard.ts                                🔵 getDailySummary, getPipelineData, getModelProgress
+├── actions/
+│   ├── entry.ts                                        🔵 submitEntry, editEntry, searchEntries
+│   └── admin.ts                                        🔵 upsertStation, upsertModel, upsertOrder, upsertLead, setUserRole
+├── middleware.ts                                        🔵 Route protection by role
+├── app/
+│   ├── layout.tsx                                      🟢 Root layout
+│   ├── page.tsx                                        🟢 Root redirect
+│   ├── login/page.tsx                                  🔵 Google OAuth login page
+│   ├── api/
+│   │   ├── auth/callback/route.ts                      🔵 OAuth callback
+│   │   └── ping/route.ts                               🔵 Keep-alive endpoint
+│   ├── entry/page.tsx                                  🟢 Entry form page (server shell)
+│   ├── dashboard/
+│   │   ├── layout.tsx                                  🟢 Auth guard layout
+│   │   ├── page.tsx                                    🟢 Daily summary page
+│   │   ├── pipeline/page.tsx                           🟢 Pipeline view page
+│   │   └── progress/page.tsx                           🟢 Model progress page
+│   └── admin/
+│       ├── layout.tsx                                  🟢 Auth guard layout
+│       ├── stations/page.tsx                           🟢 Stations CRUD
+│       ├── models/page.tsx                             🟢 Models CRUD
+│       ├── orders/page.tsx                             🟢 Orders CRUD
+│       ├── leads/page.tsx                              🟢 Leads CRUD
+│       └── accounts/page.tsx                           🟢 User role management (admin only)
+├── components/
+│   ├── entry/
+│   │   ├── EntryForm.tsx                               🟢 Main entry form
+│   │   └── EditEntryDrawer.tsx                         🟢 Edit previous entry UI
+│   ├── dashboard/
+│   │   ├── DailySummaryTable.tsx                       🟢 Daily summary table
+│   │   ├── PipelineView.tsx                            🟢 Pipeline view
+│   │   └── ModelProgressTable.tsx                      🟢 Model progress table
+│   ├── admin/
+│   │   └── CrudTable.tsx                               🟢 Reusable admin CRUD table
+│   └── ui/
+│       └── ConfirmDialog.tsx                           🟢 Confirm/cancel dialog
+├── __tests__/
+│   ├── lead-auth.test.ts                               🔵
+│   ├── entry-actions.test.ts                           🔵
+│   └── dashboard-queries.test.ts                       🔵
+├── jest.config.ts                                      🔵
+├── .env.example                                        🔵
+└── .env.local                                          🔵 (gitignored)
+```
+
+---
+
+## Milestone 1: Scaffold & Database 🔵 Anyka
+
+### Task 1.1: Initialise Next.js project
+
+**Files:**
+- Modify: root directory (scaffolds all Next.js files)
+- Create: `.env.example`, `.env.local`, `jest.config.ts`
+
+- [ ] **Scaffold Next.js in the existing repo root**
+
+```bash
+npx create-next-app@latest . --typescript --tailwind --app --no-src-dir --import-alias "@/*" --eslint
+```
+
+When prompted: say Yes to all defaults. This will scaffold into the current directory.
+
+- [ ] **Install runtime dependencies**
+
+```bash
+npm install @supabase/ssr @supabase/supabase-js bcryptjs
+npm install -D @types/bcryptjs supabase jest ts-jest @types/jest jest-environment-node
+```
+
+- [ ] **Create `jest.config.ts`**
+
+```typescript
+import type { Config } from 'jest'
+
+const config: Config = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/$1',
+  },
+  testMatch: ['**/__tests__/**/*.test.ts'],
+}
+
+export default config
+```
+
+- [ ] **Create `.env.example`** (commit this)
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+- [ ] **Create `.env.local`** (never commit — add to `.gitignore` if not already there)
+
+Fill in real values from the Supabase dashboard after Task 1.2.
+
+- [ ] **Add test script to `package.json`**
+
+```json
+"scripts": {
+  "test": "jest",
+  "test:watch": "jest --watch"
+}
+```
+
+- [ ] **Commit**
+
+```bash
+git add -A
+git commit -m "feat: scaffold Next.js project with Supabase and Jest"
+```
+
+---
+
+### Task 1.2: Supabase project + database schema + RLS
+
+**Files:**
+- Create: `supabase/migrations/20260621000000_initial_schema.sql`
+- Create: `supabase/seed.sql`
+
+**Prerequisites:** Create a Supabase project at supabase.com. Copy the project URL, anon key, and service role key into `.env.local`.
+
+- [ ] **Initialise Supabase CLI**
+
+```bash
+npx supabase init
+npx supabase login
+npx supabase link --project-ref YOUR_PROJECT_REF
+```
+
+- [ ] **Create the migration file**
+
+```bash
+npx supabase migration new initial_schema
+```
+
+This creates `supabase/migrations/20260621000000_initial_schema.sql`. Replace its contents with:
+
+```sql
+-- ── Reference tables ─────────────────────────────────────────────────────────
+
+CREATE TABLE stations (
+  id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name     TEXT NOT NULL,
+  sequence INT  NOT NULL,
+  active   BOOLEAN NOT NULL DEFAULT true
+);
+
+CREATE TABLE models (
+  id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name   TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true
+);
+
+CREATE TABLE model_station_config (
+  model_id   UUID NOT NULL REFERENCES models(id),
+  station_id UUID NOT NULL REFERENCES stations(id),
+  active     BOOLEAN NOT NULL DEFAULT true,
+  PRIMARY KEY (model_id, station_id)
+);
+
+-- ── Orders ───────────────────────────────────────────────────────────────────
+
+CREATE TABLE orders (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_number TEXT NOT NULL,
+  order_date   DATE NOT NULL,
+  due_date     DATE NOT NULL,
+  active       BOOLEAN NOT NULL DEFAULT true
+);
+
+CREATE TABLE order_lines (
+  id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES orders(id),
+  model_id UUID NOT NULL REFERENCES models(id),
+  quantity INT  NOT NULL CHECK (quantity > 0),
+  active   BOOLEAN NOT NULL DEFAULT true
+);
+
+-- ── People ───────────────────────────────────────────────────────────────────
+
+CREATE TABLE leads (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  active        BOOLEAN NOT NULL DEFAULT true
+);
+
+CREATE TABLE user_roles (
+  id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role    TEXT NOT NULL CHECK (role IN ('supervisor', 'admin')),
+  UNIQUE (user_id)
+);
+
+-- ── Production data ──────────────────────────────────────────────────────────
+
+CREATE TABLE period_log (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date         DATE NOT NULL,
+  period       TEXT NOT NULL CHECK (period IN ('P1','P2','P3','P4','P5','P6')),
+  station_id   UUID NOT NULL REFERENCES stations(id),
+  model_id     UUID NOT NULL REFERENCES models(id),
+  target       INT  NOT NULL CHECK (target >= 0),
+  actual       INT  NOT NULL CHECK (actual >= 0),
+  pax          INT  NOT NULL CHECK (pax >= 0),
+  defects      INT  NOT NULL CHECK (defects >= 0),
+  submitted_by UUID NOT NULL REFERENCES leads(id),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE period_log_edits (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  period_log_id   UUID NOT NULL REFERENCES period_log(id),
+  edited_by       UUID NOT NULL REFERENCES leads(id),
+  edited_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  prev_target     INT NOT NULL,
+  new_target      INT NOT NULL,
+  prev_actual     INT NOT NULL,
+  new_actual      INT NOT NULL,
+  prev_pax        INT NOT NULL,
+  new_pax         INT NOT NULL,
+  prev_defects    INT NOT NULL,
+  new_defects     INT NOT NULL
+);
+
+-- ── Row-Level Security ───────────────────────────────────────────────────────
+
+ALTER TABLE stations           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE models             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE model_station_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_lines        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leads              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_roles         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE period_log         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE period_log_edits   ENABLE ROW LEVEL SECURITY;
+
+-- Helper: returns the calling user's role (null if not a supervisor/admin)
+CREATE OR REPLACE FUNCTION get_user_role()
+RETURNS TEXT LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT role FROM user_roles WHERE user_id = auth.uid()
+$$;
+
+-- Reference tables: anon can SELECT (entry form dropdowns use anon key)
+--                   supervisor/admin can INSERT/UPDATE
+CREATE POLICY "stations_select"  ON stations             FOR SELECT USING (true);
+CREATE POLICY "stations_modify"  ON stations             FOR ALL    USING (get_user_role() IN ('supervisor','admin'));
+CREATE POLICY "models_select"    ON models               FOR SELECT USING (true);
+CREATE POLICY "models_modify"    ON models               FOR ALL    USING (get_user_role() IN ('supervisor','admin'));
+CREATE POLICY "msc_select"       ON model_station_config FOR SELECT USING (true);
+CREATE POLICY "msc_modify"       ON model_station_config FOR ALL    USING (get_user_role() IN ('supervisor','admin'));
+CREATE POLICY "orders_select"    ON orders               FOR SELECT USING (true);
+CREATE POLICY "orders_modify"    ON orders               FOR ALL    USING (get_user_role() IN ('supervisor','admin'));
+CREATE POLICY "ol_select"        ON order_lines          FOR SELECT USING (true);
+CREATE POLICY "ol_modify"        ON order_lines          FOR ALL    USING (get_user_role() IN ('supervisor','admin'));
+
+-- leads: anon SELECT for name dropdown; service role handles password_hash (never queried via anon key)
+CREATE POLICY "leads_select"  ON leads FOR SELECT USING (true);
+CREATE POLICY "leads_modify"  ON leads FOR ALL    USING (get_user_role() IN ('supervisor','admin'));
+
+-- user_roles: admin only
+CREATE POLICY "user_roles_all" ON user_roles FOR ALL USING (get_user_role() = 'admin');
+
+-- period_log / period_log_edits: service role for writes; supervisors/admins can SELECT
+CREATE POLICY "pl_select"  ON period_log       FOR SELECT USING (get_user_role() IN ('supervisor','admin'));
+CREATE POLICY "ple_select" ON period_log_edits FOR SELECT USING (get_user_role() IN ('supervisor','admin'));
+```
+
+- [ ] **Create `supabase/seed.sql`** (dev data — run manually, not in CI)
+
+```sql
+-- Seed 8 stations
+INSERT INTO stations (name, sequence) VALUES
+  ('Station 1', 1), ('Station 2', 2), ('Station 3', 3), ('Station 4', 4),
+  ('Station 5', 5), ('Station 6', 6), ('Station 7', 7), ('Station 8', 8);
+
+-- Seed 2 models
+INSERT INTO models (name) VALUES ('Model A'), ('Model B');
+
+-- Seed 1 lead (password: "test1234" — bcrypt hash generated with bcrypt.hashSync('test1234', 10))
+INSERT INTO leads (name, password_hash) VALUES
+  ('Test Lead', '$2a$10$YourHashHere');
+```
+
+> **Note:** Generate the real hash by running `node -e "const b=require('bcryptjs'); console.log(b.hashSync('test1234',10))"` and pasting the output.
+
+- [ ] **Push migration to Supabase**
+
+```bash
+npx supabase db push
+```
+
+Expected output: `Applying migration 20260621000000_initial_schema.sql... done`
+
+- [ ] **Verify schema in Supabase dashboard** — open Table Editor, confirm all 9 tables exist with correct columns.
+
+- [ ] **Commit**
+
+```bash
+git add supabase/ .env.example jest.config.ts
+git commit -m "feat: initial database schema with RLS policies"
+```
+
+---
+
+### Task 1.3: Generate TypeScript types
+
+**Files:**
+- Create: `types/database.ts`
+
+- [ ] **Generate types from the live schema**
+
+```bash
+npx supabase gen types typescript --project-id YOUR_PROJECT_REF > types/database.ts
+```
+
+- [ ] **Verify the file** — it should export a `Database` type with all 9 tables.
+
+- [ ] **Commit**
+
+```bash
+git add types/database.ts
+git commit -m "feat: add generated Supabase TypeScript types"
+```
+
+---
+
+## Milestone 2: Auth Layer 🔵 Anyka
+
+### Task 2.1: Supabase clients
+
+**Files:**
+- Create: `lib/supabase/client.ts`, `lib/supabase/server.ts`, `lib/supabase/admin.ts`
+
+- [ ] **Create `lib/supabase/client.ts`** (browser — uses anon key)
+
+```typescript
+import { createBrowserClient } from '@supabase/ssr'
+import type { Database } from '@/types/database'
+
+export function createClient() {
+  return createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
+```
+
+- [ ] **Create `lib/supabase/server.ts`** (server components + actions — reads session cookie)
+
+```typescript
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import type { Database } from '@/types/database'
+
+export async function createClient() {
+  const cookieStore = await cookies()
+  return createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll() },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {}
+        },
+      },
+    }
+  )
+}
+```
+
+- [ ] **Create `lib/supabase/admin.ts`** (service role — server only, bypasses RLS)
+
+```typescript
+import { createClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
+
+export function createAdminClient() {
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
+```
+
+- [ ] **Commit**
+
+```bash
+git add lib/supabase/
+git commit -m "feat: add Supabase browser, server, and admin clients"
+```
+
+---
+
+### Task 2.2: Lead auth utility
+
+**Files:**
+- Create: `lib/auth/lead-auth.ts`, `__tests__/lead-auth.test.ts`
+
+- [ ] **Write the failing test first**
+
+```typescript
+// __tests__/lead-auth.test.ts
+import { authenticateLead, hashPassword } from '@/lib/auth/lead-auth'
+
+// Mock the admin client
+jest.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: jest.fn(),
+}))
+
+import { createAdminClient } from '@/lib/supabase/admin'
+
+describe('authenticateLead', () => {
+  it('returns null when lead is not found', async () => {
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ single: async () => ({ data: null }) }) }) }) }),
+    })
+    const result = await authenticateLead('Unknown', 'password')
+    expect(result).toBeNull()
+  })
+
+  it('returns null when password does not match', async () => {
+    const hash = await hashPassword('correct')
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ single: async () => ({ data: { id: 'lead-1', password_hash: hash } }) }) }) }) }),
+    })
+    const result = await authenticateLead('Lead A', 'wrong')
+    expect(result).toBeNull()
+  })
+
+  it('returns lead id when password matches', async () => {
+    const hash = await hashPassword('correct')
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ single: async () => ({ data: { id: 'lead-1', password_hash: hash } }) }) }) }) }),
+    })
+    const result = await authenticateLead('Lead A', 'correct')
+    expect(result).toBe('lead-1')
+  })
+})
+```
+
+- [ ] **Run test to confirm it fails**
+
+```bash
+npm test -- lead-auth
+```
+
+Expected: FAIL — `Cannot find module '@/lib/auth/lead-auth'`
+
+- [ ] **Create `lib/auth/lead-auth.ts`**
+
+```typescript
+import bcrypt from 'bcryptjs'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export async function authenticateLead(
+  name: string,
+  password: string
+): Promise<string | null> {
+  const supabase = createAdminClient()
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('id, password_hash')
+    .eq('name', name)
+    .eq('active', true)
+    .single()
+
+  if (!lead) return null
+  const valid = await bcrypt.compare(password, lead.password_hash)
+  return valid ? lead.id : null
+}
+
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 10)
+}
+```
+
+- [ ] **Run test to confirm it passes**
+
+```bash
+npm test -- lead-auth
+```
+
+Expected: PASS (3 tests)
+
+- [ ] **Commit**
+
+```bash
+git add lib/auth/lead-auth.ts __tests__/lead-auth.test.ts
+git commit -m "feat: lead bcrypt auth utility with tests"
+```
+
+---
+
+### Task 2.3: Session + role utilities
+
+**Files:**
+- Create: `lib/auth/session.ts`
+
+- [ ] **Create `lib/auth/session.ts`**
+
+```typescript
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+
+export type UserRole = 'supervisor' | 'admin'
+
+export async function requireSession() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  return user
+}
+
+export async function requireRole(minRole: UserRole) {
+  const user = await requireSession()
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', user.id)
+    .single()
+
+  if (!data) redirect('/login')
+  if (minRole === 'admin' && data.role !== 'admin') redirect('/dashboard')
+  return { user, role: data.role as UserRole }
+}
+```
+
+- [ ] **Commit**
+
+```bash
+git add lib/auth/session.ts
+git commit -m "feat: session and role check utilities"
+```
+
+---
+
+### Task 2.4: Middleware
+
+**Files:**
+- Create: `middleware.ts`
+
+- [ ] **Create `middleware.ts`**
+
+```typescript
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+export async function middleware(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return request.cookies.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const path = request.nextUrl.pathname
+
+  if ((path.startsWith('/dashboard') || path.startsWith('/admin')) && !user) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  if (path.startsWith('/admin/accounts') && user) {
+    const { data } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single()
+    if (data?.role !== 'admin') {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+  }
+
+  return supabaseResponse
+}
+
+export const config = {
+  matcher: ['/dashboard/:path*', '/admin/:path*'],
+}
+```
+
+- [ ] **Commit**
+
+```bash
+git add middleware.ts
+git commit -m "feat: middleware route protection by role"
+```
+
+---
+
+### Task 2.5: Login page + OAuth callback
+
+**Files:**
+- Create: `app/login/page.tsx`, `app/api/auth/callback/route.ts`
+
+**Prerequisites:** In Supabase dashboard → Authentication → Providers, enable Google OAuth. Add your Google OAuth client ID and secret. Add `http://localhost:3000/api/auth/callback` and your production Vercel URL to the allowed redirect URLs.
+
+- [ ] **Create `app/api/auth/callback/route.ts`**
+
+```typescript
+import { createClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
+
+export async function GET(request: Request) {
+  const { searchParams, origin } = new URL(request.url)
+  const code = searchParams.get('code')
+  const next = searchParams.get('next') ?? '/dashboard'
+
+  if (code) {
+    const supabase = await createClient()
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error) return NextResponse.redirect(`${origin}${next}`)
+  }
+
+  return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+}
+```
+
+- [ ] **Create `app/login/page.tsx`**
+
+```typescript
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) redirect('/dashboard')
+
+  const params = await searchParams
+  const error = params.error
+
+  async function signIn() {
+    'use server'
+    const supabase = await createClient()
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/api/auth/callback`,
+      },
+    })
+    if (data.url) redirect(data.url)
+  }
+
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="bg-white p-8 rounded-xl shadow-sm w-full max-w-sm space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900">YTC Production</h1>
+        <p className="text-gray-600 text-sm">Supervisor / Admin login</p>
+        {error && (
+          <p className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+            Authentication failed — please try again.
+          </p>
+        )}
+        <form action={signIn}>
+          <button
+            type="submit"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+          >
+            Sign in with Google
+          </button>
+        </form>
+        <p className="text-xs text-gray-400 text-center">
+          Line leads — go to <a href="/entry" className="underline">/entry</a>
+        </p>
+      </div>
+    </main>
+  )
+}
+```
+
+- [ ] **Add `NEXT_PUBLIC_SITE_URL` to `.env.local`**
+
+```
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+- [ ] **Test login flow locally**
+
+```bash
+npm run dev
+```
+
+Navigate to `http://localhost:3000/login` → click "Sign in with Google" → complete OAuth → confirm redirect to `/dashboard`.
+
+- [ ] **Commit**
+
+```bash
+git add app/login/ app/api/auth/
+git commit -m "feat: Google OAuth login page and callback handler"
+```
+
+---
+
+## Milestone 3: Entry Form 🔵 Anyka (server actions) + 🟢 Ryo (UI)
+
+*These tasks can run in parallel after M2 is complete.*
+
+---
+
+### Task 3.1 🔵 Anyka: Entry server actions
+
+**Files:**
+- Create: `actions/entry.ts`, `__tests__/entry-actions.test.ts`
+
+- [ ] **Write failing tests**
+
+```typescript
+// __tests__/entry-actions.test.ts
+jest.mock('@/lib/auth/lead-auth', () => ({
+  authenticateLead: jest.fn(),
+}))
+jest.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: jest.fn(),
+}))
+
+import { submitEntry, editEntry, searchEntries } from '@/actions/entry'
+import { authenticateLead } from '@/lib/auth/lead-auth'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+const baseData = {
+  date: '2026-06-21',
+  period: 'P1',
+  stationId: 'station-uuid',
+  modelId: 'model-uuid',
+  target: 100,
+  actual: 90,
+  pax: 5,
+  defects: 2,
+  leadName: 'Alice',
+  password: 'pass',
+}
+
+describe('submitEntry', () => {
+  it('returns auth_failed when password is wrong', async () => {
+    ;(authenticateLead as jest.Mock).mockResolvedValue(null)
+    const result = await submitEntry(baseData)
+    expect(result.status).toBe('auth_failed')
+  })
+
+  it('returns duplicate when entry already exists and not confirmed', async () => {
+    ;(authenticateLead as jest.Mock).mockResolvedValue('lead-1')
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 'existing' } }) }) }) }) }) }) }),
+    })
+    const result = await submitEntry(baseData)
+    expect(result.status).toBe('duplicate')
+  })
+
+  it('returns success when auth passes and no duplicate', async () => {
+    ;(authenticateLead as jest.Mock).mockResolvedValue('lead-1')
+    const mockInsert = jest.fn().mockResolvedValue({ error: null })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: (table: string) => table === 'period_log'
+        ? { select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }) }), insert: mockInsert }
+        : {},
+    })
+    const result = await submitEntry(baseData)
+    expect(result.status).toBe('success')
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ submitted_by: 'lead-1' }))
+  })
+})
+```
+
+- [ ] **Run tests to confirm they fail**
+
+```bash
+npm test -- entry-actions
+```
+
+- [ ] **Create `actions/entry.ts`**
+
+```typescript
+'use server'
+import { authenticateLead } from '@/lib/auth/lead-auth'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export type EntryFormData = {
+  date: string
+  period: string
+  stationId: string
+  modelId: string
+  target: number
+  actual: number
+  pax: number
+  defects: number
+  leadName: string
+  password: string
+  confirmDuplicate?: boolean
+}
+
+export type EntryResult =
+  | { status: 'success' }
+  | { status: 'auth_failed' }
+  | { status: 'duplicate' }
+  | { status: 'error'; message: string }
+
+export async function submitEntry(data: EntryFormData): Promise<EntryResult> {
+  const leadId = await authenticateLead(data.leadName, data.password)
+  if (!leadId) return { status: 'auth_failed' }
+
+  const supabase = createAdminClient()
+
+  if (!data.confirmDuplicate) {
+    const { data: existing } = await supabase
+      .from('period_log')
+      .select('id')
+      .eq('date', data.date)
+      .eq('period', data.period)
+      .eq('station_id', data.stationId)
+      .eq('model_id', data.modelId)
+      .maybeSingle()
+
+    if (existing) return { status: 'duplicate' }
+  }
+
+  const { error } = await supabase.from('period_log').insert({
+    date: data.date,
+    period: data.period,
+    station_id: data.stationId,
+    model_id: data.modelId,
+    target: data.target,
+    actual: data.actual,
+    pax: data.pax,
+    defects: data.defects,
+    submitted_by: leadId,
+  })
+
+  return error ? { status: 'error', message: error.message } : { status: 'success' }
+}
+
+export type EditData = {
+  entryId: string
+  leadName: string
+  password: string
+  target: number
+  actual: number
+  pax: number
+  defects: number
+}
+
+export type EditResult =
+  | { status: 'success' }
+  | { status: 'auth_failed' }
+  | { status: 'error'; message: string }
+
+export async function editEntry(data: EditData): Promise<EditResult> {
+  const leadId = await authenticateLead(data.leadName, data.password)
+  if (!leadId) return { status: 'auth_failed' }
+
+  const supabase = createAdminClient()
+
+  const { data: current, error: fetchError } = await supabase
+    .from('period_log')
+    .select('target, actual, pax, defects')
+    .eq('id', data.entryId)
+    .single()
+
+  if (fetchError || !current) return { status: 'error', message: 'Entry not found' }
+
+  const { error: updateError } = await supabase
+    .from('period_log')
+    .update({ target: data.target, actual: data.actual, pax: data.pax, defects: data.defects })
+    .eq('id', data.entryId)
+
+  if (updateError) return { status: 'error', message: updateError.message }
+
+  const { error: auditError } = await supabase.from('period_log_edits').insert({
+    period_log_id: data.entryId,
+    edited_by: leadId,
+    prev_target: current.target,
+    new_target: data.target,
+    prev_actual: current.actual,
+    new_actual: data.actual,
+    prev_pax: current.pax,
+    new_pax: data.pax,
+    prev_defects: current.defects,
+    new_defects: data.defects,
+  })
+
+  return auditError ? { status: 'error', message: auditError.message } : { status: 'success' }
+}
+
+export async function searchEntries(stationId: string, period: string, date: string) {
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('period_log')
+    .select(`
+      id, date, period, target, actual, pax, defects, created_at,
+      stations(name),
+      models(name),
+      leads(name)
+    `)
+    .eq('station_id', stationId)
+    .eq('period', period)
+    .eq('date', date)
+    .order('created_at', { ascending: false })
+
+  return data ?? []
+}
+```
+
+- [ ] **Run tests — confirm they pass**
+
+```bash
+npm test -- entry-actions
+```
+
+- [ ] **Commit**
+
+```bash
+git add actions/entry.ts __tests__/entry-actions.test.ts
+git commit -m "feat: entry server actions (submit, edit, search) with tests"
+```
+
+---
+
+### Task 3.2 🟢 Ryo: EntryForm component + page
+
+**Files:**
+- Create: `components/entry/EntryForm.tsx`, `components/ui/ConfirmDialog.tsx`, `app/entry/page.tsx`
+
+**Interfaces from Task 3.1:**
+- `submitEntry(data: EntryFormData): Promise<EntryResult>` — import from `@/actions/entry`
+- `searchEntries(stationId, period, date): Promise<entries[]>` — for the edit search
+
+**Data shape fetched server-side and passed as props:**
+
+```typescript
+type Station = { id: string; name: string; sequence: number }
+type Model   = { id: string; name: string }
+type Lead    = { id: string; name: string }
+```
+
+- [ ] **Create `components/ui/ConfirmDialog.tsx`** — a modal that shows a message with Confirm and Cancel buttons. Accept `message: string`, `onConfirm: () => void`, `onCancel: () => void` props.
+
+- [ ] **Create `components/entry/EntryForm.tsx`**
+
+This is a client component (`'use client'`). It receives `stations`, `models`, and `leads` as props and calls `submitEntry` on submit.
+
+State to manage:
+- `formState` — current field values
+- `result` — the last `EntryResult` from the server action
+- `showConfirm` — boolean for the duplicate confirmation dialog
+- `pending` — from `useTransition` to disable the button while submitting
+
+Behaviour:
+- On `status: 'auth_failed'` → show inline error "Incorrect password — submission not recorded."
+- On `status: 'duplicate'` → show `ConfirmDialog` with "An entry already exists for this combination. Submit anyway?"
+  - On confirm → re-call `submitEntry` with `confirmDuplicate: true`
+  - On cancel → dismiss dialog
+- On `status: 'success'` → show "Submitted successfully" and reset form fields (except leadName/password so the lead doesn't have to re-enter every time)
+- On `status: 'error'` → show "Submission failed — please try again."
+
+The date field should default to today (`new Date().toISOString().split('T')[0]`).
+
+- [ ] **Create `app/entry/page.tsx`** — server component that fetches dropdowns and renders `EntryForm`
+
+```typescript
+import { createClient } from '@/lib/supabase/server'
+import EntryForm from '@/components/entry/EntryForm'
+
+export default async function EntryPage() {
+  const supabase = await createClient()
+
+  const [{ data: stations }, { data: models }, { data: leads }] = await Promise.all([
+    supabase.from('stations').select('id, name, sequence').eq('active', true).order('sequence'),
+    supabase.from('models').select('id, name').eq('active', true).order('name'),
+    supabase.from('leads').select('id, name').eq('active', true).order('name'),
+  ])
+
+  return (
+    <main className="min-h-screen bg-gray-50 p-4">
+      <EntryForm
+        stations={stations ?? []}
+        models={models ?? []}
+        leads={leads ?? []}
+      />
+    </main>
+  )
+}
+```
+
+- [ ] **Manually test the entry form**
+
+```bash
+npm run dev
+```
+
+1. Navigate to `http://localhost:3000/entry`
+2. Fill in all fields with a valid lead name + "test1234" (from seed)
+3. Submit → confirm "Submitted successfully"
+4. Submit the same entry again → confirm duplicate warning appears
+5. Confirm duplicate → confirm second row written
+6. Submit with wrong password → confirm error message, no DB row
+
+- [ ] **Commit**
+
+```bash
+git add components/entry/ components/ui/ConfirmDialog.tsx app/entry/
+git commit -m "feat: entry form UI with duplicate warning and auth error handling"
+```
+
+---
+
+### Task 3.3 🟢 Ryo: Edit entry UI
+
+**Files:**
+- Create: `components/entry/EditEntryDrawer.tsx`
+
+**Interfaces from Task 3.1:**
+- `searchEntries(stationId, period, date)` — returns entries to display
+- `editEntry(data: EditData): Promise<EditResult>` — called on save
+
+- [ ] **Create `components/entry/EditEntryDrawer.tsx`** — a client component that:
+  1. Shows a search form: Station (dropdown), Period (dropdown), Date (date input defaulting to today)
+  2. On search → calls `searchEntries` (as a server action or via fetch), displays matching rows in a table showing: Station, Period, Model, Target, Actual, PAX, Defects, Submitted by, Time
+  3. User clicks a row → opens edit form pre-filled with those values + Lead name dropdown + Password field
+  4. On save → calls `editEntry`, shows success/auth-failure inline
+  5. On `status: 'auth_failed'` → "Incorrect password — edit not saved."
+  6. On `status: 'success'` → "Saved." and close the edit form
+
+- [ ] **Add an "Edit previous entry" link/button to `EntryForm.tsx`** that opens the `EditEntryDrawer`.
+
+- [ ] **Manually test**
+
+1. Submit an entry
+2. Open Edit drawer, search by that station + period + today
+3. Confirm the entry appears
+4. Click it, change Actual, submit with correct password → confirm update
+5. Try with wrong password → confirm error, no change
+
+- [ ] **Commit**
+
+```bash
+git add components/entry/EditEntryDrawer.tsx
+git commit -m "feat: edit entry drawer with audit log"
+```
+
+---
+
+## Milestone 4: Admin CRUD 🔵 Anyka (actions) + 🟢 Ryo (UI)
+
+*These tasks can run in parallel after M2 is complete.*
+
+---
+
+### Task 4.1 🔵 Anyka: Admin server actions
+
+**Files:**
+- Create: `actions/admin.ts`
+
+- [ ] **Create `actions/admin.ts`**
+
+```typescript
+'use server'
+import { requireRole } from '@/lib/auth/session'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { hashPassword } from '@/lib/auth/lead-auth'
+import { revalidatePath } from 'next/cache'
+
+// ── Stations ──────────────────────────────────────────────────────────────────
+
+export async function upsertStation(data: {
+  id?: string
+  name: string
+  sequence: number
+  active: boolean
+}) {
+  await requireRole('supervisor')
+  const supabase = createAdminClient()
+  if (data.id) {
+    await supabase.from('stations')
+      .update({ name: data.name, sequence: data.sequence, active: data.active })
+      .eq('id', data.id)
+  } else {
+    await supabase.from('stations').insert({ name: data.name, sequence: data.sequence, active: data.active })
+  }
+  revalidatePath('/admin/stations')
+}
+
+// ── Models ────────────────────────────────────────────────────────────────────
+
+export async function upsertModel(data: {
+  id?: string
+  name: string
+  active: boolean
+  stationIds: string[]  // stations this model flows through
+}) {
+  await requireRole('supervisor')
+  const supabase = createAdminClient()
+  let modelId = data.id
+
+  if (data.id) {
+    await supabase.from('models').update({ name: data.name, active: data.active }).eq('id', data.id)
+  } else {
+    const { data: inserted } = await supabase.from('models')
+      .insert({ name: data.name, active: data.active }).select('id').single()
+    modelId = inserted!.id
+  }
+
+  // Deactivate all existing config for this model, then activate selected stations
+  await supabase.from('model_station_config').update({ active: false }).eq('model_id', modelId!)
+  if (data.stationIds.length > 0) {
+    await supabase.from('model_station_config').upsert(
+      data.stationIds.map(stationId => ({ model_id: modelId!, station_id: stationId, active: true })),
+      { onConflict: 'model_id,station_id' }
+    )
+  }
+  revalidatePath('/admin/models')
+}
+
+// ── Orders ────────────────────────────────────────────────────────────────────
+
+export async function upsertOrder(data: {
+  id?: string
+  orderNumber: string
+  orderDate: string
+  dueDate: string
+  active: boolean
+  lines: { modelId: string; quantity: number }[]
+}) {
+  await requireRole('supervisor')
+  const supabase = createAdminClient()
+  let orderId = data.id
+
+  if (data.id) {
+    await supabase.from('orders').update({
+      order_number: data.orderNumber,
+      order_date: data.orderDate,
+      due_date: data.dueDate,
+      active: data.active,
+    }).eq('id', data.id)
+    // Replace all order lines
+    await supabase.from('order_lines').delete().eq('order_id', data.id)
+  } else {
+    const { data: inserted } = await supabase.from('orders').insert({
+      order_number: data.orderNumber,
+      order_date: data.orderDate,
+      due_date: data.dueDate,
+      active: data.active,
+    }).select('id').single()
+    orderId = inserted!.id
+  }
+
+  if (data.lines.length > 0) {
+    await supabase.from('order_lines').insert(
+      data.lines.map(l => ({ order_id: orderId!, model_id: l.modelId, quantity: l.quantity, active: true }))
+    )
+  }
+  revalidatePath('/admin/orders')
+}
+
+// ── Leads ─────────────────────────────────────────────────────────────────────
+
+export async function upsertLead(data: {
+  id?: string
+  name: string
+  password?: string  // required for new leads, optional for updates
+  active: boolean
+}) {
+  await requireRole('supervisor')
+  const supabase = createAdminClient()
+
+  if (data.id) {
+    const update: Record<string, unknown> = { name: data.name, active: data.active }
+    if (data.password) update.password_hash = await hashPassword(data.password)
+    await supabase.from('leads').update(update).eq('id', data.id)
+  } else {
+    if (!data.password) throw new Error('Password required for new leads')
+    const password_hash = await hashPassword(data.password)
+    await supabase.from('leads').insert({ name: data.name, password_hash, active: data.active })
+  }
+  revalidatePath('/admin/leads')
+}
+
+// ── User roles (Admin only) ───────────────────────────────────────────────────
+
+export async function setUserRole(userId: string, role: 'supervisor' | 'admin') {
+  await requireRole('admin')
+  const supabase = createAdminClient()
+  await supabase.from('user_roles').upsert({ user_id: userId, role }, { onConflict: 'user_id' })
+  revalidatePath('/admin/accounts')
+}
+
+export async function removeUserRole(userId: string) {
+  await requireRole('admin')
+  const supabase = createAdminClient()
+  await supabase.from('user_roles').delete().eq('user_id', userId)
+  revalidatePath('/admin/accounts')
+}
+```
+
+- [ ] **Commit**
+
+```bash
+git add actions/admin.ts
+git commit -m "feat: admin CRUD server actions for all reference tables"
+```
+
+---
+
+### Task 4.2 🟢 Ryo: Admin layout + shared CrudTable component
+
+**Files:**
+- Create: `app/admin/layout.tsx`, `components/admin/CrudTable.tsx`
+
+- [ ] **Create `app/admin/layout.tsx`** — server component that calls `requireRole('supervisor')` and wraps with a nav sidebar linking to `/admin/stations`, `/admin/models`, `/admin/orders`, `/admin/leads`, and (admin only) `/admin/accounts`.
+
+- [ ] **Create `components/admin/CrudTable.tsx`** — a generic, reusable table component. Props:
+
+```typescript
+type CrudTableProps<T> = {
+  columns: { key: keyof T; label: string }[]
+  rows: T[]
+  onEdit: (row: T) => void
+  onToggleActive: (row: T) => void  // calls upsert with flipped active
+}
+```
+
+Renders a table with an Edit button and an Active/Deactivate toggle per row.
+
+- [ ] **Commit**
+
+```bash
+git add app/admin/layout.tsx components/admin/CrudTable.tsx
+git commit -m "feat: admin layout and reusable CrudTable component"
+```
+
+---
+
+### Task 4.3 🟢 Ryo: Stations, Models, Orders, Leads admin pages
+
+**Files:**
+- Create: `app/admin/stations/page.tsx`, `app/admin/models/page.tsx`, `app/admin/orders/page.tsx`, `app/admin/leads/page.tsx`, `app/admin/accounts/page.tsx`
+
+Each page follows the same pattern:
+1. Server component fetches current data
+2. Renders `CrudTable` with rows
+3. Edit button opens a form/modal that calls the relevant `upsertX` action
+4. New button opens the same form empty
+
+- [ ] **Create `app/admin/stations/page.tsx`** — fetches all stations ordered by sequence; form fields: Name (text), Sequence (number), Active (checkbox).
+
+- [ ] **Create `app/admin/models/page.tsx`** — fetches all models; form fields: Name (text), Active (checkbox), Station Config (multi-select checkboxes from active stations — maps to `stationIds`).
+
+- [ ] **Create `app/admin/orders/page.tsx`** — fetches orders with their line items. Form fields: Order Number, Order Date, Due Date, Active, and a dynamic list of line items (Model dropdown + Quantity input, with Add/Remove line).
+
+- [ ] **Create `app/admin/leads/page.tsx`** — fetches leads. Form fields: Name (text), Password (only required on create, optional on edit — shown as "Leave blank to keep existing"), Active (checkbox).
+
+- [ ] **Create `app/admin/accounts/page.tsx`** — admin only. Fetches all Supabase Auth users (via `createAdminClient().auth.admin.listUsers()`) and their current roles from `user_roles`. Shows a table: Email | Current Role | Set Role (dropdown: supervisor / admin / none).
+
+- [ ] **Manually verify all admin pages**
+
+1. Create a station → appears in entry form dropdown
+2. Deactivate a station → disappears from entry form dropdown; historical logs still intact
+3. Create a lead with password → can submit entry form with that lead
+4. Reset a lead's password → old password no longer works, new one does
+5. Create an order with two line items → appears in model progress view
+
+- [ ] **Commit**
+
+```bash
+git add app/admin/
+git commit -m "feat: admin CRUD pages for stations, models, orders, leads, accounts"
+```
+
+---
+
+## Milestone 5: Dashboard 🔵 Anyka (queries) + 🟢 Ryo (UI)
+
+*These tasks can run in parallel after M1 is complete.*
+
+---
+
+### Task 5.1 🔵 Anyka: Dashboard query functions
+
+**Files:**
+- Create: `lib/db/dashboard.ts`, `__tests__/dashboard-queries.test.ts`
+
+- [ ] **Write failing tests**
+
+```typescript
+// __tests__/dashboard-queries.test.ts
+jest.mock('@/lib/supabase/admin', () => ({ createAdminClient: jest.fn() }))
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getDailySummary, getPipelineData, getModelProgress } from '@/lib/db/dashboard'
+
+describe('getDailySummary', () => {
+  it('aggregates target/actual/defects by station and sorts by sequence', async () => {
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            data: [
+              { target: 100, actual: 80, defects: 3, stations: { id: 's1', name: 'Station 1', sequence: 1 } },
+              { target: 50,  actual: 40, defects: 1, stations: { id: 's1', name: 'Station 1', sequence: 1 } },
+              { target: 90,  actual: 90, defects: 0, stations: { id: 's2', name: 'Station 2', sequence: 2 } },
+            ],
+          }),
+        }),
+      }),
+    })
+    const rows = await getDailySummary('2026-06-21')
+    expect(rows).toHaveLength(2)
+    expect(rows[0].stationName).toBe('Station 1')
+    expect(rows[0].target).toBe(150)
+    expect(rows[0].actual).toBe(120)
+    expect(rows[0].attainmentPct).toBe(80)
+    expect(rows[0].variance).toBe(-30)
+    expect(rows[1].attainmentPct).toBe(100)
+  })
+})
+
+describe('getPipelineData', () => {
+  it('computes WIP as upstream actual minus current station actual', async () => {
+    jest.spyOn(require('@/lib/db/dashboard'), 'getDailySummary').mockResolvedValue([
+      { stationId: 's1', stationName: 'Station 1', sequence: 1, target: 100, actual: 90, attainmentPct: 90, variance: -10, defects: 0 },
+      { stationId: 's2', stationName: 'Station 2', sequence: 2, target: 100, actual: 70, attainmentPct: 70, variance: -30, defects: 2 },
+    ])
+    const rows = await getPipelineData('2026-06-21')
+    expect(rows[0].wip).toBeNull()       // first station has no upstream
+    expect(rows[1].wip).toBe(20)         // 90 - 70
+    expect(rows[1].gapToGoal).toBe(30)   // 100 - 70
+  })
+})
+```
+
+- [ ] **Run tests — confirm they fail**
+
+```bash
+npm test -- dashboard-queries
+```
+
+- [ ] **Create `lib/db/dashboard.ts`**
+
+```typescript
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export type DailySummaryRow = {
+  stationId: string
+  stationName: string
+  sequence: number
+  target: number
+  actual: number
+  attainmentPct: number | null
+  variance: number
+  defects: number
+}
+
+export async function getDailySummary(date: string): Promise<DailySummaryRow[]> {
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('period_log')
+    .select('target, actual, defects, stations!inner(id, name, sequence)')
+    .eq('date', date)
+
+  if (!data) return []
+
+  const byStation = new Map<string, { name: string; sequence: number; target: number; actual: number; defects: number }>()
+  for (const row of data) {
+    const s = row.stations as { id: string; name: string; sequence: number }
+    const ex = byStation.get(s.id) ?? { name: s.name, sequence: s.sequence, target: 0, actual: 0, defects: 0 }
+    byStation.set(s.id, { ...ex, target: ex.target + row.target, actual: ex.actual + row.actual, defects: ex.defects + row.defects })
+  }
+
+  return Array.from(byStation.entries())
+    .map(([stationId, s]) => ({
+      stationId,
+      stationName: s.name,
+      sequence: s.sequence,
+      target: s.target,
+      actual: s.actual,
+      attainmentPct: s.target > 0 ? Math.round((s.actual / s.target) * 100) : null,
+      variance: s.actual - s.target,
+      defects: s.defects,
+    }))
+    .sort((a, b) => a.sequence - b.sequence)
+}
+
+export type PipelineRow = DailySummaryRow & {
+  gapToGoal: number
+  wip: number | null
+}
+
+export async function getPipelineData(date: string): Promise<PipelineRow[]> {
+  const summary = await getDailySummary(date)
+  return summary.map((row, i) => ({
+    ...row,
+    gapToGoal: row.target - row.actual,
+    wip: i > 0 ? summary[i - 1].actual - row.actual : null,
+  }))
+}
+
+export type ModelProgressRow = {
+  modelId: string
+  modelName: string
+  totalOrdered: number
+  totalProduced: number
+  balanceRemaining: number
+  earliestDueDate: string
+}
+
+export async function getModelProgress(): Promise<ModelProgressRow[]> {
+  const supabase = createAdminClient()
+
+  const { data: lines } = await supabase
+    .from('order_lines')
+    .select('quantity, model_id, models!inner(name), orders!inner(due_date, active)')
+    .eq('active', true)
+    .eq('orders.active', true)
+
+  if (!lines) return []
+
+  const modelMap = new Map<string, { name: string; totalOrdered: number; earliestDueDate: string }>()
+  for (const line of lines) {
+    const id = line.model_id
+    const order = line.orders as { due_date: string }
+    const ex = modelMap.get(id)
+    if (!ex) {
+      modelMap.set(id, { name: (line.models as { name: string }).name, totalOrdered: line.quantity, earliestDueDate: order.due_date })
+    } else {
+      modelMap.set(id, {
+        ...ex,
+        totalOrdered: ex.totalOrdered + line.quantity,
+        earliestDueDate: order.due_date < ex.earliestDueDate ? order.due_date : ex.earliestDueDate,
+      })
+    }
+  }
+
+  const modelIds = Array.from(modelMap.keys())
+  const { data: produced } = await supabase
+    .from('period_log')
+    .select('model_id, actual')
+    .in('model_id', modelIds)
+
+  const producedMap = new Map<string, number>()
+  for (const row of produced ?? []) {
+    producedMap.set(row.model_id, (producedMap.get(row.model_id) ?? 0) + row.actual)
+  }
+
+  return Array.from(modelMap.entries())
+    .map(([modelId, m]) => ({
+      modelId,
+      modelName: m.name,
+      totalOrdered: m.totalOrdered,
+      totalProduced: producedMap.get(modelId) ?? 0,
+      balanceRemaining: m.totalOrdered - (producedMap.get(modelId) ?? 0),
+      earliestDueDate: m.earliestDueDate,
+    }))
+    .sort((a, b) => a.earliestDueDate.localeCompare(b.earliestDueDate))
+}
+```
+
+- [ ] **Run tests — confirm they pass**
+
+```bash
+npm test -- dashboard-queries
+```
+
+Expected: PASS (3 tests)
+
+- [ ] **Commit**
+
+```bash
+git add lib/db/dashboard.ts __tests__/dashboard-queries.test.ts
+git commit -m "feat: dashboard query functions with tests"
+```
+
+---
+
+### Task 5.2 🟢 Ryo: Dashboard layout + Daily Summary view
+
+**Files:**
+- Create: `app/dashboard/layout.tsx`, `app/dashboard/page.tsx`, `components/dashboard/DailySummaryTable.tsx`
+
+**Interfaces from Task 5.1:**
+```typescript
+// getDailySummary(date: string): Promise<DailySummaryRow[]>
+type DailySummaryRow = {
+  stationId: string; stationName: string; sequence: number
+  target: number; actual: number
+  attainmentPct: number | null; variance: number; defects: number
+}
+```
+
+- [ ] **Create `app/dashboard/layout.tsx`** — server component that calls `requireRole('supervisor')`, then renders a top nav with tabs: Daily Summary (`/dashboard`), Pipeline (`/dashboard/pipeline`), Model Progress (`/dashboard/progress`), and a link to Admin.
+
+- [ ] **Create `components/dashboard/DailySummaryTable.tsx`** — client or server component. Props: `rows: DailySummaryRow[]`. Renders a table:
+
+| Station | Target | Actual | Attainment % | Variance | Defects |
+|---|---|---|---|---|---|
+
+- Attainment % shown as a percentage with colour coding: green ≥ 90%, amber 70–89%, red < 70%, grey if null (no target).
+- Variance shown as negative numbers in red.
+
+- [ ] **Create `app/dashboard/page.tsx`** — server component with a date picker (defaults to today). Fetches `getDailySummary(date)` and passes rows to `DailySummaryTable`.
+
+```typescript
+import { getDailySummary } from '@/lib/db/dashboard'
+import DailySummaryTable from '@/components/dashboard/DailySummaryTable'
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>
+}) {
+  const params = await searchParams
+  const date = params.date ?? new Date().toISOString().split('T')[0]
+  const rows = await getDailySummary(date)
+
+  return (
+    <div className="p-6 space-y-4">
+      <h1 className="text-xl font-semibold">Daily Summary</h1>
+      <DatePicker value={date} />
+      <DailySummaryTable rows={rows} />
+    </div>
+  )
+}
+```
+
+Create a small client component `components/ui/DatePicker.tsx` that wraps the date input:
+
+```typescript
+'use client'
+import { useRouter } from 'next/navigation'
+
+export default function DatePicker({ value }: { value: string }) {
+  const router = useRouter()
+  return (
+    <input
+      type="date"
+      defaultValue={value}
+      className="border rounded px-3 py-1.5 text-sm"
+      onChange={(e) => router.push(`?date=${e.target.value}`)}
+    />
+  )
+}
+```
+
+- [ ] **Commit**
+
+```bash
+git add app/dashboard/layout.tsx app/dashboard/page.tsx components/dashboard/DailySummaryTable.tsx
+git commit -m "feat: dashboard layout and daily summary view"
+```
+
+---
+
+### Task 5.3 🟢 Ryo: Pipeline view + Model progress view
+
+**Files:**
+- Create: `app/dashboard/pipeline/page.tsx`, `components/dashboard/PipelineView.tsx`
+- Create: `app/dashboard/progress/page.tsx`, `components/dashboard/ModelProgressTable.tsx`
+
+**Interfaces from Task 5.1:**
+```typescript
+type PipelineRow = DailySummaryRow & { gapToGoal: number; wip: number | null }
+type ModelProgressRow = {
+  modelId: string; modelName: string
+  totalOrdered: number; totalProduced: number
+  balanceRemaining: number; earliestDueDate: string
+}
+```
+
+- [ ] **Create `components/dashboard/PipelineView.tsx`** — renders stations in sequence order. For each station show:
+  - Station name + sequence number
+  - Attainment %  (colour-coded same as daily summary)
+  - WIP into this station (units sitting between previous station and this one) — show "—" for first station
+  - Gap to goal (target − actual) — highlight in red if > 0
+
+- [ ] **Create `app/dashboard/pipeline/page.tsx`** — server component, same date picker pattern as daily summary, calls `getPipelineData(date)`.
+
+- [ ] **Create `components/dashboard/ModelProgressTable.tsx`** — props: `rows: ModelProgressRow[]`. Renders:
+
+| Model | Ordered | Produced | Balance | Due Date |
+|---|---|---|---|---|
+
+- Balance shown in red if > 0 (still work to do), green if 0 (complete).
+- Sorted by due date (already sorted from query).
+
+- [ ] **Create `app/dashboard/progress/page.tsx`** — server component, calls `getModelProgress()` (no date filter — all-time production vs active orders).
+
+- [ ] **Manually verify dashboard end-to-end** (from tech spec section 11, items 5–7)
+
+1. Log entries for all 8 stations for today
+2. Open Daily Summary → confirm attainment %, variance, defects display correctly
+3. Open Pipeline View → confirm WIP = upstream actual − this station actual
+4. Create order with 2 models, log production for both → open Model Progress → confirm balance remaining correct
+
+- [ ] **Commit**
+
+```bash
+git add app/dashboard/pipeline/ app/dashboard/progress/ components/dashboard/
+git commit -m "feat: pipeline view and model progress dashboard views"
+```
+
+---
+
+## Milestone 6: Keep-alive + Root Routes + Deploy 🔵 Anyka
+
+### Task 6.1: Keep-alive endpoint + root redirect
+
+**Files:**
+- Create: `app/api/ping/route.ts`, `app/layout.tsx`, `app/page.tsx`
+
+- [ ] **Create `app/api/ping/route.ts`**
+
+```typescript
+import { createAdminClient } from '@/lib/supabase/admin'
+import { NextResponse } from 'next/server'
+
+export async function GET() {
+  const supabase = createAdminClient()
+  // Simple query to keep Supabase active
+  await supabase.from('stations').select('id').limit(1)
+  return NextResponse.json({ ok: true, ts: new Date().toISOString() })
+}
+```
+
+- [ ] **Create `app/layout.tsx`**
+
+```typescript
+import type { Metadata } from 'next'
+import './globals.css'
+
+export const metadata: Metadata = {
+  title: 'YTC Production',
+  description: 'Factory production tracking',
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body className="bg-gray-50 text-gray-900">{children}</body>
+    </html>
+  )
+}
+```
+
+- [ ] **Create `app/page.tsx`** — redirect based on session
+
+```typescript
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+
+export default async function RootPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) redirect('/dashboard')
+  // Line leads go directly to entry, not login
+  redirect('/entry')
+}
+```
+
+- [ ] **Test the ping endpoint**
+
+```bash
+curl http://localhost:3000/api/ping
+```
+
+Expected: `{"ok":true,"ts":"2026-..."}`
+
+- [ ] **Commit**
+
+```bash
+git add app/api/ping/ app/layout.tsx app/page.tsx
+git commit -m "feat: keep-alive ping endpoint and root redirect"
+```
+
+---
+
+### Task 6.2: Deploy to Vercel
+
+- [ ] **Push to GitHub** (if not already)
+
+```bash
+git push origin main
+```
+
+- [ ] **Create Vercel project**
+  1. Go to vercel.com → New Project → Import your GitHub repo
+  2. Framework: Next.js (auto-detected)
+  3. Add all environment variables from `.env.local`:
+     - `NEXT_PUBLIC_SUPABASE_URL`
+     - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+     - `SUPABASE_SERVICE_ROLE_KEY`
+     - `NEXT_PUBLIC_SITE_URL` → set to your Vercel production URL (e.g. `https://ytc-data.vercel.app`)
+  4. Deploy
+
+- [ ] **Add production URL to Supabase OAuth redirect list**
+
+In Supabase → Authentication → URL Configuration, add: `https://your-vercel-url.vercel.app/api/auth/callback`
+
+- [ ] **Smoke-test production deployment**
+
+1. Visit `https://your-vercel-url.vercel.app/entry` — entry form loads
+2. Submit an entry → confirm it writes to Supabase
+3. Visit `/login` → sign in with Google → land on dashboard
+4. Visit `/api/ping` → returns `{"ok":true}`
+
+- [ ] **Commit** (Vercel config is automatic, just confirm deploy succeeds)
+
+---
+
+### Task 6.3: Configure keep-alive cron
+
+- [ ] **Set up cron-job.org**
+  1. Create a free account at cron-job.org
+  2. New cronjob → URL: `https://your-vercel-url.vercel.app/api/ping`
+  3. Schedule: Daily (any time)
+  4. Save and enable
+
+- [ ] **Verify** — trigger the cron manually from the dashboard, confirm it returns HTTP 200.
+
+---
+
+## Post-MVP Verification Checklist
+
+Run through all 10 items from tech spec section 11:
+
+- [ ] Entry form submits a log entry — row in `period_log` with correct `submitted_by`
+- [ ] Wrong password → inline error, no DB row written
+- [ ] Duplicate submission → warning appears, proceed on confirm
+- [ ] Edit + audit log → `period_log_edits` row created with correct `edited_by` and old/new values
+- [ ] Daily summary → attainment %, variance, defects display correctly
+- [ ] Model progress → balance remaining updates after logging production
+- [ ] Pipeline view → WIP and gap-to-goal reflect actual vs upstream output
+- [ ] Admin CRUD → create/deactivate station; confirm dropdown updates; historical logs intact
+- [ ] Role gating → line lead cannot access `/dashboard`; supervisor can; admin can access `/admin/accounts`
+- [ ] Keep-alive → `/api/ping` returns 200; cron-job.org configured and confirmed
