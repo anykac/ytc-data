@@ -1135,7 +1135,7 @@ git commit -m "feat: edit entry drawer with audit log"
 **Files:**
 - Create: `actions/admin.ts`
 
-- [ ] **Create `actions/admin.ts`**
+- [x] **Create `actions/admin.ts`**
 
 ```typescript
 'use server'
@@ -1276,7 +1276,7 @@ export async function removeUserRole(userId: string) {
 }
 ```
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add actions/admin.ts
@@ -1324,6 +1324,12 @@ Each page follows the same pattern:
 2. Renders `CrudTable` with rows
 3. Edit button opens a form/modal that calls the relevant `upsertX` action
 4. New button opens the same form empty
+
+> **Form contracts from T4.1 server actions — required before building these pages:**
+>
+> - **Leads — password field on edit:** Send `undefined` (omit the field entirely) when the password input is left blank. Do **not** send `""` — the action throws on empty string. Only include the field when the supervisor has typed a new password.
+>
+> - **order_lines soft-delete pattern:** Each order edit deactivates the old lines and inserts new ones. Inactive rows are the audit trail and accumulate. Any query that reads `order_lines` **must** filter `WHERE active = true` / `.eq('active', true)` — forgetting this filter double-counts quantities. This applies to the orders page and to any `order_lines` query in `lib/db/dashboard.ts`.
 
 - [ ] **Create `app/admin/stations/page.tsx`** — fetches all stations ordered by sequence; form fields: Name (text), Sequence (number), Active (checkbox).
 
