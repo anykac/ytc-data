@@ -27,8 +27,8 @@
 
 ## Dev Assignment Key
 
-- 🔵 **Anyka** — infrastructure, auth, server actions, DB queries
-- 🟢 **Ryo** — UI components, page layouts, dashboard views, admin tables
+- 🔵 **Anyka** — infrastructure, auth, server actions, entry form (UI tightly coupled to auth/security flow)
+- 🟢 **Ryo** — admin UI, dashboard queries (DA territory), dashboard views
 
 Tasks can run in parallel after **M1 and M2 are complete**.
 
@@ -51,7 +51,7 @@ Tasks can run in parallel after **M1 and M2 are complete**.
 │   │   ├── lead-auth.ts                                🔵 bcrypt validation + hashing
 │   │   └── session.ts                                  🔵 requireSession, requireRole helpers
 │   └── db/
-│       └── dashboard.ts                                🔵 getDailySummary, getPipelineData, getModelProgress
+│       └── dashboard.ts                                🟢 getDailySummary, getPipelineData, getModelProgress
 ├── actions/
 │   ├── entry.ts                                        🔵 submitEntry, editEntry, searchEntries
 │   └── admin.ts                                        🔵 upsertStation, upsertModel, upsertOrder, upsertLead, setUserRole
@@ -78,8 +78,8 @@ Tasks can run in parallel after **M1 and M2 are complete**.
 │       └── accounts/page.tsx                           🟢 User role management (admin only)
 ├── components/
 │   ├── entry/
-│   │   ├── EntryForm.tsx                               🟢 Main entry form
-│   │   └── EditEntryDrawer.tsx                         🟢 Edit previous entry UI
+│   │   ├── EntryForm.tsx                               🔵 Main entry form (auth-coupled UI)
+│   │   └── EditEntryDrawer.tsx                         🔵 Edit previous entry UI (auth-coupled)
 │   ├── dashboard/
 │   │   ├── DailySummaryTable.tsx                       🟢 Daily summary table
 │   │   ├── PipelineView.tsx                            🟢 Pipeline view
@@ -998,7 +998,7 @@ git commit -m "feat: entry server actions (submit, edit, search) with tests"
 
 ---
 
-### Task 3.2 🟢 Ryo: EntryForm component + page
+### Task 3.2 🔵 Anyka: EntryForm component + page
 
 **Files:**
 - Create: `components/entry/EntryForm.tsx`, `components/ui/ConfirmDialog.tsx`, `app/entry/page.tsx`
@@ -1086,7 +1086,7 @@ git commit -m "feat: entry form UI with duplicate warning and auth error handlin
 
 ---
 
-### Task 3.3 🟢 Ryo: Edit entry UI
+### Task 3.3 🔵 Anyka: Edit entry UI
 
 **Files:**
 - Create: `components/entry/EditEntryDrawer.tsx`
@@ -1350,13 +1350,13 @@ git commit -m "feat: admin CRUD pages for stations, models, orders, leads, accou
 
 ---
 
-## Milestone 5: Dashboard 🔵 Anyka (queries) + 🟢 Ryo (UI)
+## Milestone 5: Dashboard 🟢 Ryo (queries + UI)
 
 *These tasks can run in parallel after M1 is complete.*
 
 ---
 
-### Task 5.1 🔵 Anyka: Dashboard query functions
+### Task 5.1 🟢 Ryo: Dashboard query functions
 
 **Files:**
 - Create: `lib/db/dashboard.ts`, `__tests__/dashboard-queries.test.ts`
