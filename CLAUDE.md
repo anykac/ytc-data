@@ -52,8 +52,9 @@ If a PR covers a full milestone use `[M#][T#.1-#.N]`. Single task: `[M#][T#.N]`.
 
 ### What belongs in one PR
 
-- **Same milestone → same PR.** All tasks in a milestone ship together unless a task is blocked waiting on another developer.
-- **New work that depends on an open PR → stacked PR.** Branch off the in-progress branch, not `main`, and set the PR base to that branch. When the parent PR merges, update the stack's base to `main`.
+- **Default: one PR per task.** Each task in the implementation plan (e.g. T2.1, T3.2) should be its own PR. Smaller, focused PRs are easier to review and safer to merge.
+- **Exception — boilerplate/foundation tasks** that are tightly coupled and meaningless in isolation can be grouped (e.g. M1 was one PR because scaffolding + schema + types only make sense together). Use judgement: if a reviewer couldn't meaningfully approve one task without the next, group them.
+- **New work that depends on an open PR → stacked PR.** Branch off the in-progress branch, not `main`, and set the PR base to that branch. When the parent PR merges, retarget the stack to `main`.
 - **New work that is fully independent → new branch off `main`.** No stacking needed.
 
 ### Starting work on a task
