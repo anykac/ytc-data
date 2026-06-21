@@ -57,9 +57,46 @@ If a PR covers a full milestone use `[M#][T#.1-#.N]`. Single task: `[M#][T#.N]`.
 - **New work that depends on an open PR → stacked PR.** Branch off the in-progress branch, not `main`, and set the PR base to that branch. When the parent PR merges, retarget the stack to `main`.
 - **New work that is fully independent → new branch off `main`.** No stacking needed.
 
+### Session start — always do this first
+
+At the beginning of every conversation, before touching any code or creating any branch, run these checks:
+
+```bash
+# 1. What branch are we on and what's the state?
+git status
+git branch --show-current
+
+# 2. Is local main behind origin?
+git fetch origin main
+git log --oneline HEAD..origin/main
+```
+
+If `git log` shows commits, local main is behind — pull before branching:
+
+```bash
+git checkout main
+git pull origin main
+```
+
+If there is already a feature branch checked out, check whether its base is current:
+
+```bash
+git log --oneline main..HEAD          # commits ahead of main
+git log --oneline HEAD..origin/main   # commits on remote main not in this branch
+```
+
+If remote main has moved ahead of the branch base, rebase or flag it to the developer before continuing.
+
+Also check for any open PRs on the current branch before assuming new work is needed:
+
+```powershell
+$env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+gh pr list --head $(git branch --show-current)
+```
+
 ### Starting work on a task
 
-1. Make sure local `main` is up to date with GitHub before branching:
+1. Make sure local `main` is up to date with GitHub before branching (do this as part of session start above):
    ```bash
    git checkout main
    git pull origin main
@@ -86,6 +123,35 @@ Commit frequently to the feature branch — one commit per logical step is fine.
    ```
 3. **Tell the developer:** "PR is ready for review at `<URL>`. Share the link with your collaborator before merging."
 4. **Do not merge the PR yourself.** Wait for the developer to confirm review is done.
+
+### Merge assistance
+
+When the developer says the PR is approved and ready to merge, assist as follows:
+
+1. **Confirm PR status** before merging:
+   ```powershell
+   $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+   gh pr view --json state,reviewDecision,statusCheckRollup
+   ```
+   Only proceed if `state` is `OPEN` and there are no failing checks.
+
+2. **Merge via GitHub CLI** (squash merge to keep main history clean):
+   ```powershell
+   gh pr merge <PR-number> --squash --delete-branch
+   ```
+
+3. **Sync local main** immediately after:
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+
+4. **Confirm the merge landed:**
+   ```bash
+   git log --oneline -3 main
+   ```
+
+5. Tell the developer: "Merged. Local `main` is up to date. Ready to start the next task."
 
 ### After the PR is merged on GitHub
 
