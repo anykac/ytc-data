@@ -95,7 +95,7 @@ Approximate scale: ~8 stations, 4 supervisors, and a few rotating line leads per
 | :---- | :---- | ----- |
 | **FR-2.1** | Daily summary view showing attainment %, variance, defects per day | P0 |
 | **FR-2.2** | Station summary ranking stations by attainment to surface bottlenecks | P1 |
-| **FR-2.3** | Model progress view with balance remaining and projected completion | P0 |
+| **FR-2.3** | Model progress view with balance remaining and projected completion. Progress is computed at the model level: total demand = SUM(order_lines.quantity WHERE order active), total produced = SUM(period_log.actual WHERE model_id matches), balance = demand − produced. Results are sorted by due_date to surface urgency. Per-order-line attribution is deferred to P1. | P0 |
 | **FR-2.4** | Attainment trend chart over time (daily and weekly) | P1 |
 | **FR-2.5** | Defect trend and concentration by station and day | P1 |
 | **FR-2.6** | Filter all views by date range, station, model, and shift | P1 |
@@ -105,8 +105,9 @@ Approximate scale: ~8 stations, 4 supervisors, and a few rotating line leads per
 
 | ID | Requirement | Priority |
 | :---- | :---- | ----- |
-| **FR-3.1** | Admin can create, edit, and deactivate stations, models, and orders | P0 |
+| **FR-3.1** | Admin can create, edit, and deactivate stations, models, leads, and orders. Orders contain one or more line items: each line item specifies a model and quantity (`order_lines` table). An order has an `order_date` (when it was created) and a `due_date` (when it must be completed). | P0 |
 | **FR-3.2** | Admin sets the daily plan: which model each station runs, with targets | P2 |
+| **FR-3.3** | Admin can configure which stations are active for each model via `model_station_config` (model_id, station_id, active). Stations that are inactive for a given model are skipped in that model's pipeline view. | P0 |
 
 ## **5.4 Admin operational (Access: Admin only)**
 
@@ -130,6 +131,55 @@ Approximate scale: ~8 stations, 4 supervisors, and a few rotating line leads per
 * **Soft deletes:** Stations, models, orders, and leads use an `active` boolean flag rather than hard deletes, so historical `period_log` references remain intact and queryable.
 
 * **Historical data migration:** Import of historical spreadsheet data is P1 scope (not required at P0 launch).
+
+# **5.7 Station sequencing & production flow**
+
+Stations represent sequential steps in the manufacturing process, not independent workstations. Key design decisions:
+
+* Each station is a discrete step in a linear production flow. The output of station N is the available input to station N+1 (1:1 unit ratio).
+* The `stations` table has a `sequence` integer field that defines the order of steps in the production flow.
+* **WIP between stations** = cumulative output of station N−1 minus cumulative output of station N.
+* The dashboard surfaces a **"gap to goal"** metric: how much a station's actual output is feeding or starving the next station downstream.
+* All models generally flow through stations in the same sequence. However, certain stations may be skipped for specific models. The `model_station_config` junction table (model_id, station_id, active) controls this. The pipeline view uses this to skip inactive station steps for a given model.
+
+# **5.8 period_log design decisions**
+
+* `period_log` references `model_id` directly (not `order_line_id`). Because multiple orders can consolidate production of the same model on the line simultaneously, production logs track model — not which specific order line they fulfill.
+* **Multiple rows per (date, period, station, model) are allowed.** There is no unique DB constraint on that combination — models can change mid-period, producing multiple rows for the same station+period.
+* The server checks for duplicates before writing: if a (date, period, station_id, model_id) row already exists, it warns the user ("An entry already exists for this combination — submit anyway?") and only writes on confirmation.
+
+# **5.9 Final data model**
+
+```
+orders              order_lines           leads
+──────              ───────────           ─────
+id                  id                    id
+order_number        order_id → orders     name
+order_date          model_id → models     password_hash
+due_date            quantity              active
+active              active
+
+stations            models                model_station_config
+────────            ──────                ────────────────────
+id                  id                    model_id → models
+name                name                  station_id → stations
+sequence            active                active
+active
+
+period_log                    period_log_edits
+──────────                    ────────────────
+id                            id
+date                          period_log_id → period_log
+period (P1–P6)                edited_by → leads
+station_id → stations         edited_at
+model_id → models             prev_target / new_target
+target                        prev_actual / new_actual
+actual                        prev_pax / new_pax
+pax                           prev_defects / new_defects
+defects
+submitted_by → leads
+created_at
+```
 
 # **6\. Non-Functional Requirements**
 
