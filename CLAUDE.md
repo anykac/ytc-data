@@ -29,6 +29,12 @@ Always read these before making implementation decisions:
 - **Supervisor** — dashboard + admin via Google OAuth session
 - **Admin** — account/role management via Google OAuth session
 
+## Living Documentation Rules
+
+- **After completing any task:** check it off in `project_docs/YTC_implementation_plan.md` (mark the `- [ ]` steps as `- [x]`).
+- **If understanding of requirements, design, or data model changes:** update `project_docs/YTC_Data_entry_tech_spec.md` and/or `project_docs/YTC_Data_entry_problem_doc.md` to reflect the current truth before continuing.
+- These docs are the source of truth — keep them current, not the conversation history.
+
 ## P0 MVP Scope
 
 Entry form, edit + audit log, daily summary dashboard, model progress view, pipeline view, stations/models/orders/leads CRUD, RBAC, Google OAuth for Supervisor/Admin. See tech spec section 10 for the full P0 list and what is deferred to P1/P2.
