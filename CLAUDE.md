@@ -12,8 +12,9 @@ Always read these before making implementation decisions:
 
 | File | Purpose |
 |---|---|
-| `project_docs/YTC_Data_entry_tech_spec.md` | **Primary reference.** Stack, auth design, data model, key screens, security, P0 scope, and verification plan. Start here. |
-| `project_docs/YTC_Data_entry_problem_doc.md` | PRD — problem statement, goals, success metrics, functional requirements with P0/P1/P2 priorities, and non-functional requirements. |
+| `project_docs/YTC_implementation_plan.md` | **Start here.** Milestone-by-milestone task breakdown with code, tests, and CLI commands. Dev assignments: 🔵 Anyka (infra/auth/entry form) and 🟢 Ryo (admin UI/dashboard). |
+| `project_docs/YTC_Data_entry_tech_spec.md` | Tech spec — stack, auth design, data model, key screens, security, P0 scope, and verification plan. |
+| `project_docs/YTC_Data_entry_problem_doc.md` | PRD — problem statement, goals, success metrics, functional requirements with P0/P1/P2 priorities. |
 
 ## Stack
 
