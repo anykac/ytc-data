@@ -20,6 +20,12 @@ export async function requireRole(minRole: UserRole) {
     .single()
 
   if (!data) redirect('/login')
-  if (minRole === 'admin' && data.role !== 'admin') redirect('/dashboard')
+
+  // Explicit allowlist per required level — exhaustive so any unexpected role is rejected
+  const allowed: Record<UserRole, UserRole[]> = {
+    supervisor: ['supervisor', 'admin'],
+    admin: ['admin'],
+  }
+  if (!allowed[minRole].includes(data.role as UserRole)) redirect('/dashboard')
   return { user, role: data.role as UserRole }
 }

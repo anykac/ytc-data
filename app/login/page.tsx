@@ -23,6 +23,7 @@ export default async function LoginPage({
       },
     })
     if (data.url) redirect(data.url)
+    redirect('/login?error=auth_failed')
   }
 
   return (

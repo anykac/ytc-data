@@ -6,13 +6,14 @@ export async function authenticateLead(
   password: string
 ): Promise<string | null> {
   const supabase = createAdminClient()
-  const { data: lead } = await supabase
+  const { data: lead, error } = await supabase
     .from('leads')
     .select('id, password_hash')
     .eq('name', name)
     .eq('active', true)
-    .single()
+    .maybeSingle()
 
+  if (error) throw error  // real DB failure — don't mask as wrong password
   if (!lead) return null
   const valid = await bcrypt.compare(password, lead.password_hash)
   return valid ? lead.id : null

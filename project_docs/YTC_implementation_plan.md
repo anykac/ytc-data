@@ -1,6 +1,8 @@
 # YTC Data Entry — P0 MVP Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **Code samples are starting points, not production code.** Apply the implementation standards in `CLAUDE.md` on top of every sample — input validation, error handling, and exhaustive auth conditions are always required regardless of what the sample shows.
 
 **Goal:** Build the P0 MVP — a mobile-friendly production log entry form, daily summary + pipeline + model-progress dashboard, and admin CRUD — on Next.js + Supabase + Vercel with per-submission lead auth and Google OAuth for supervisors/admins.
 

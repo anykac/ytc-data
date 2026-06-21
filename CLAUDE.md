@@ -175,6 +175,42 @@ git pull origin main
 
 ---
 
+## Implementation Standards
+
+Code samples in the implementation plan are starting points, not production code. When implementing from a spec sample, always apply these three checks — they are not optional even for an MVP:
+
+**1. Validate user-controlled input at trust boundaries**
+Any value that arrives from a URL, query string, form, or external API must be validated before it is used in a redirect, query, or response. Never pass `searchParams`, URL fragments, or request fields directly into `redirect()`, SQL, or headers without checking the value is within expected bounds.
+
+**2. Capture and inspect all error returns from Supabase**
+Every Supabase query returns `{ data, error }`. Always destructure `error` and check it. A discarded error makes a database failure indistinguishable from a missing record, and silently breaks auth, logging, and debugging.
+
+```typescript
+// Wrong — error is silently discarded
+const { data: lead } = await supabase.from('leads').select(...).maybeSingle()
+
+// Correct — error is inspected before using data
+const { data: lead, error } = await supabase.from('leads').select(...).maybeSingle()
+if (error) throw error
+```
+
+**3. Auth conditions must be exhaustive, not just happy-path**
+Auth checks must explicitly enumerate allowed states rather than only rejecting one known bad case. Allowlists are safer than denylists for role checks.
+
+```typescript
+// Wrong — only blocks the one known bad case; any unexpected role passes
+if (minRole === 'admin' && data.role !== 'admin') redirect('/dashboard')
+
+// Correct — explicit allowlist; any unexpected role is rejected by default
+const allowed: Record<UserRole, UserRole[]> = {
+  supervisor: ['supervisor', 'admin'],
+  admin: ['admin'],
+}
+if (!allowed[minRole].includes(data.role)) redirect('/dashboard')
+```
+
+---
+
 ## Living Documentation Rules
 
 - **After completing any task:** check it off in `project_docs/YTC_implementation_plan.md` (mark the `- [ ]` steps as `- [x]`).
