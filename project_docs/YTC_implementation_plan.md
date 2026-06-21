@@ -1135,7 +1135,7 @@ git commit -m "feat: edit entry drawer with audit log"
 **Files:**
 - Create: `actions/admin.ts`
 
-- [ ] **Create `actions/admin.ts`**
+- [x] **Create `actions/admin.ts`**
 
 ```typescript
 'use server'
@@ -1276,7 +1276,7 @@ export async function removeUserRole(userId: string) {
 }
 ```
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add actions/admin.ts
