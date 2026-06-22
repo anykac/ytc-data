@@ -23,7 +23,7 @@ export type EntryResult =
   | { status: 'error'; message: string }
 
 export async function submitEntry(data: EntryFormData): Promise<EntryResult> {
-  if (data.defects > data.actual) return { status: 'error', message: 'Defects cannot exceed actual output.' }
+  if (data.defects > data.actual) return { status: 'error', message: 'Value must be less than or equal to Actual output.' }
 
   const leadId = await authenticateLead(data.leadName, data.password)
   if (!leadId) return { status: 'auth_failed' }
@@ -75,7 +75,7 @@ export type EditResult =
   | { status: 'error'; message: string }
 
 export async function editEntry(data: EditData): Promise<EditResult> {
-  if (data.defects > data.actual) return { status: 'error', message: 'Defects cannot exceed actual output.' }
+  if (data.defects > data.actual) return { status: 'error', message: 'Value must be less than or equal to Actual output.' }
 
   const leadId = await authenticateLead(data.leadName, data.password)
   if (!leadId) return { status: 'auth_failed' }
