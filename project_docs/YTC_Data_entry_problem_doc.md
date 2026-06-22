@@ -88,6 +88,7 @@ Approximate scale: ~8 stations, 4 supervisors, and a few rotating line leads per
 | **FR-1.4** | Form works on any computer or mobile browser without app installation | P0 |
 | **FR-1.5** | Line leads authenticate via a password field on the entry form (per-submission auth — no session or email login). Each submission is validated server-side against a hashed password stored in the `leads` table. If auth fails, an inline error is shown and nothing is written to the DB. | P0 |
 | **FR-1.6** | Edit previous entries, search by Station+Period, and update with the line lead’s credentials. Auth must pass before any edit is recorded — if the password fails, nothing is written. On successful edit, the audit log stores: `edited_by` (authenticated lead’s ID), `edited_at`, previous values, and new values. | P0 |
+| **FR-1.7** | Defects for a period cannot exceed the actual output for that period. This is enforced at three layers: client-side (the Defects field is capped at the value entered in Actual), server action (rejects the submission if defects > actual), and database CHECK constraint (`defects <= actual`). | P0 |
 
 ## **5.2 Dashboard & reporting (Access: Supervisor+)**
 
