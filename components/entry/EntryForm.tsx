@@ -205,7 +205,11 @@ export default function EntryForm({ stations, models, leads }: Props) {
                 min={0}
                 max={field === 'defects' && form.actual !== '' ? Number(form.actual) : undefined}
                 value={form[field]}
-                onChange={e => set(field, e.target.value)}
+                onInvalid={field === 'defects' ? e => e.currentTarget.setCustomValidity('Value must be less than or equal to Actual output') : undefined}
+                onChange={e => {
+                  if (field === 'defects') e.currentTarget.setCustomValidity('')
+                  set(field, e.target.value)
+                }}
                 className={INPUT_CLS}
                 placeholder="0"
               />
