@@ -6,6 +6,9 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
 const PERIODS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'] as const
 
+const INPUT_CLS = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900'
+const SELECT_CLS = `${INPUT_CLS} bg-white`
+
 type Station = { id: string; name: string; sequence: number }
 type Model   = { id: string; name: string }
 type Lead    = { id: string; name: string }
@@ -123,7 +126,12 @@ export default function EntryForm({ stations, models, leads }: Props) {
       )}
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-5 max-w-lg mx-auto">
-        <h1 className="text-xl font-semibold text-gray-900">Log Production Entry</h1>
+        <div className="flex items-start justify-between">
+          <h1 className="text-xl font-semibold text-gray-900">Log Production Entry</h1>
+          <a href="/login" className="text-xs text-gray-400 hover:text-gray-600 transition-colors mt-1">
+            Supervisor / Admin →
+          </a>
+        </div>
 
         {/* Date + Period */}
         <div className="grid grid-cols-2 gap-4">
@@ -134,7 +142,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               required
               value={form.date}
               onChange={e => set('date', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className={INPUT_CLS}
             />
           </div>
           <div className="space-y-1">
@@ -143,7 +151,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               required
               value={form.period}
               onChange={e => set('period', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+              className={SELECT_CLS}
             >
               {PERIODS.map(p => (
                 <option key={p} value={p}>{p}</option>
@@ -160,7 +168,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               required
               value={form.stationId}
               onChange={e => set('stationId', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+              className={SELECT_CLS}
             >
               <option value="">Select station</option>
               {stations.map(s => (
@@ -174,7 +182,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               required
               value={form.modelId}
               onChange={e => set('modelId', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+              className={SELECT_CLS}
             >
               <option value="">Select model</option>
               {models.map(m => (
@@ -195,7 +203,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
                 min={0}
                 value={form[field]}
                 onChange={e => set(field, e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className={INPUT_CLS}
                 placeholder="0"
               />
             </div>
@@ -210,7 +218,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               required
               value={form.leadName}
               onChange={e => set('leadName', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+              className={SELECT_CLS}
             >
               <option value="">Select lead</option>
               {leads.map(l => (
@@ -225,7 +233,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               required
               value={form.password}
               onChange={e => set('password', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className={INPUT_CLS}
               placeholder="Lead password"
             />
           </div>
