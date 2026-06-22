@@ -7,7 +7,11 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 const PERIODS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'] as const
 
 const INPUT_CLS = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900'
-const SELECT_CLS = `${INPUT_CLS} bg-white`
+const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
+
+function selectCls(value: string) {
+  return `${BASE_SELECT} ${value ? 'text-gray-900' : 'text-gray-400'}`
+}
 
 type Station = { id: string; name: string; sequence: number }
 type Model   = { id: string; name: string }
@@ -151,7 +155,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               required
               value={form.period}
               onChange={e => set('period', e.target.value)}
-              className={SELECT_CLS}
+              className={`${BASE_SELECT} text-gray-900`}
             >
               {PERIODS.map(p => (
                 <option key={p} value={p}>{p}</option>
@@ -168,7 +172,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               required
               value={form.stationId}
               onChange={e => set('stationId', e.target.value)}
-              className={SELECT_CLS}
+              className={selectCls(form.stationId)}
             >
               <option value="">Select station</option>
               {stations.map(s => (
@@ -182,7 +186,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               required
               value={form.modelId}
               onChange={e => set('modelId', e.target.value)}
-              className={SELECT_CLS}
+              className={selectCls(form.modelId)}
             >
               <option value="">Select model</option>
               {models.map(m => (
@@ -218,7 +222,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               required
               value={form.leadName}
               onChange={e => set('leadName', e.target.value)}
-              className={SELECT_CLS}
+              className={selectCls(form.leadName)}
             >
               <option value="">Select lead</option>
               {leads.map(l => (
