@@ -1,0 +1,115 @@
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export type DailySummaryRow = {
+  stationId: string
+  stationName: string
+  sequence: number
+  target: number
+  actual: number
+  attainmentPct: number | null
+  variance: number
+  defects: number
+}
+
+export async function getDailySummary(date: string): Promise<DailySummaryRow[]> {
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('period_log')
+    .select('target, actual, defects, stations!inner(id, name, sequence)')
+    .eq('date', date)
+
+  if (!data) return []
+
+  const byStation = new Map<string, { name: string; sequence: number; target: number; actual: number; defects: number }>()
+  for (const row of data) {
+    const s = row.stations as { id: string; name: string; sequence: number }
+    const ex = byStation.get(s.id) ?? { name: s.name, sequence: s.sequence, target: 0, actual: 0, defects: 0 }
+    byStation.set(s.id, { ...ex, target: ex.target + row.target, actual: ex.actual + row.actual, defects: ex.defects + row.defects })
+  }
+
+  return Array.from(byStation.entries())
+    .map(([stationId, s]) => ({
+      stationId,
+      stationName: s.name,
+      sequence: s.sequence,
+      target: s.target,
+      actual: s.actual,
+      attainmentPct: s.target > 0 ? Math.round((s.actual / s.target) * 100) : null,
+      variance: s.actual - s.target,
+      defects: s.defects,
+    }))
+    .sort((a, b) => a.sequence - b.sequence)
+}
+
+export type PipelineRow = DailySummaryRow & {
+  gapToGoal: number
+  wip: number | null
+}
+
+export async function getPipelineData(date: string): Promise<PipelineRow[]> {
+  const summary = await getDailySummary(date)
+  return summary.map((row, i) => ({
+    ...row,
+    gapToGoal: row.target - row.actual,
+    wip: i > 0 ? summary[i - 1].actual - row.actual : null,
+  }))
+}
+
+export type ModelProgressRow = {
+  modelId: string
+  modelName: string
+  totalOrdered: number
+  totalProduced: number
+  balanceRemaining: number
+  earliestDueDate: string
+}
+
+export async function getModelProgress(): Promise<ModelProgressRow[]> {
+  const supabase = createAdminClient()
+
+  const { data: lines } = await supabase
+    .from('order_lines')
+    .select('quantity, model_id, models!inner(name), orders!inner(due_date, active)')
+    .eq('active', true)
+    .eq('orders.active', true)
+
+  if (!lines) return []
+
+  const modelMap = new Map<string, { name: string; totalOrdered: number; earliestDueDate: string }>()
+  for (const line of lines) {
+    const id = line.model_id
+    const order = line.orders as { due_date: string }
+    const ex = modelMap.get(id)
+    if (!ex) {
+      modelMap.set(id, { name: (line.models as { name: string }).name, totalOrdered: line.quantity, earliestDueDate: order.due_date })
+    } else {
+      modelMap.set(id, {
+        ...ex,
+        totalOrdered: ex.totalOrdered + line.quantity,
+        earliestDueDate: order.due_date < ex.earliestDueDate ? order.due_date : ex.earliestDueDate,
+      })
+    }
+  }
+
+  const modelIds = Array.from(modelMap.keys())
+  const { data: produced } = await supabase
+    .from('period_log')
+    .select('model_id, actual')
+    .in('model_id', modelIds)
+
+  const producedMap = new Map<string, number>()
+  for (const row of produced ?? []) {
+    producedMap.set(row.model_id, (producedMap.get(row.model_id) ?? 0) + row.actual)
+  }
+
+  return Array.from(modelMap.entries())
+    .map(([modelId, m]) => ({
+      modelId,
+      modelName: m.name,
+      totalOrdered: m.totalOrdered,
+      totalProduced: producedMap.get(modelId) ?? 0,
+      balanceRemaining: m.totalOrdered - (producedMap.get(modelId) ?? 0),
+      earliestDueDate: m.earliestDueDate,
+    }))
+    .sort((a, b) => a.earliestDueDate.localeCompare(b.earliestDueDate))
+}
