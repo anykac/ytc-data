@@ -13,11 +13,12 @@ export type DailySummaryRow = {
 
 export async function getDailySummary(date: string): Promise<DailySummaryRow[]> {
   const supabase = createAdminClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('period_log')
     .select('target, actual, defects, stations!inner(id, name, sequence)')
     .eq('date', date)
 
+  if (error) throw error
   if (!data) return []
 
   const byStation = new Map<string, { name: string; sequence: number; target: number; actual: number; defects: number }>()
@@ -67,12 +68,13 @@ export type ModelProgressRow = {
 export async function getModelProgress(): Promise<ModelProgressRow[]> {
   const supabase = createAdminClient()
 
-  const { data: lines } = await supabase
+  const { data: lines, error: linesError } = await supabase
     .from('order_lines')
     .select('quantity, model_id, models!inner(name), orders!inner(due_date, active)')
     .eq('active', true)
-    .eq('orders.active', true)
+    .filter('orders.active', 'eq', true)
 
+  if (linesError) throw linesError
   if (!lines) return []
 
   const modelMap = new Map<string, { name: string; totalOrdered: number; earliestDueDate: string }>()
@@ -92,23 +94,25 @@ export async function getModelProgress(): Promise<ModelProgressRow[]> {
   }
 
   const modelIds = Array.from(modelMap.keys())
-  const { data: produced } = await supabase
+  const { data: produced, error: producedError } = await supabase
     .from('period_log')
     .select('model_id, actual, stations!inner(sequence)')
     .in('model_id', modelIds)
+
+  if (producedError) throw producedError
 
   // Only count actuals from the furthest station each model has reached.
   // A unit is "produced" when it exits the last station in the flow — summing
   // all stations would count the same unit multiple times.
   const modelMaxSeq = new Map<string, number>()
-  for (const row of produced ?? []) {
+  for (const row of produced) {
     const seq = (row.stations as { sequence: number }).sequence
     const cur = modelMaxSeq.get(row.model_id) ?? 0
     if (seq > cur) modelMaxSeq.set(row.model_id, seq)
   }
 
   const producedMap = new Map<string, number>()
-  for (const row of produced ?? []) {
+  for (const row of produced) {
     const seq = (row.stations as { sequence: number }).sequence
     if (seq === modelMaxSeq.get(row.model_id)) {
       producedMap.set(row.model_id, (producedMap.get(row.model_id) ?? 0) + row.actual)

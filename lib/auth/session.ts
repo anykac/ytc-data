@@ -13,14 +13,14 @@ export async function requireSession() {
 
 export async function requireRole(minRole: UserRole) {
   const user = await requireSession()
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('user_roles')
     .select('role')
     .eq('user_id', user.id)
     .maybeSingle()
 
+  if (error) throw error
   if (!data) redirect('/login')
 
   // Explicit allowlist per required level — exhaustive so any unexpected role is rejected
