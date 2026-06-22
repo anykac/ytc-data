@@ -12,6 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Link href="/dashboard/pipeline" className="text-sm text-gray-600 hover:text-gray-900">Pipeline</Link>
         <Link href="/dashboard/progress" className="text-sm text-gray-600 hover:text-gray-900">Model Progress</Link>
         <Link href="/admin" className="text-sm text-gray-600 hover:text-gray-900 ml-auto">Admin</Link>
+        <Link href="/logout" className="text-sm text-gray-500 hover:text-gray-900">Log out</Link>
       </nav>
       <main>{children}</main>
     </div>
