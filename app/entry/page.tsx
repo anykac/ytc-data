@@ -17,6 +17,12 @@ export default async function EntryPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-lg mx-auto mb-4 flex items-center justify-between">
+        <span className="text-xs text-gray-400">YTC Production</span>
+        <a href="/login" className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">
+          Supervisor Login
+        </a>
+      </div>
       <EntryForm
         stations={stations ?? []}
         models={models ?? []}

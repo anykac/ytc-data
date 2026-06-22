@@ -131,12 +131,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
       )}
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-5 max-w-lg mx-auto">
-        <div className="flex items-start justify-between">
-          <h1 className="text-xl font-semibold text-gray-900">Log Production Entry</h1>
-          <a href="/login" className="text-xs text-gray-400 hover:text-gray-600 transition-colors mt-1">
-            Supervisor / Admin →
-          </a>
-        </div>
+        <h1 className="text-xl font-semibold text-gray-900">Log Production Entry</h1>
 
         {/* Date + Period */}
         <div className="grid grid-cols-2 gap-4">
