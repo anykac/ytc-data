@@ -77,6 +77,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
       actual: '',
       pax: '',
       defects: '',
+      password: '',
     }))
   }
 
