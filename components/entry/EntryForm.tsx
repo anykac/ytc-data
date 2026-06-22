@@ -196,7 +196,9 @@ export default function EntryForm({ stations, models, leads }: Props) {
         <div className="grid grid-cols-2 gap-4">
           {(['target', 'actual', 'pax', 'defects'] as const).map(field => (
             <div key={field} className="space-y-1">
-              <label className="text-sm font-medium text-gray-700 capitalize">{field}</label>
+              <label className="text-sm font-medium text-gray-700">
+                {{ target: 'Target output', actual: 'Actual output', pax: 'PAX', defects: 'Defects' }[field]}
+              </label>
               <input
                 type="number"
                 required
