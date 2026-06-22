@@ -94,12 +94,25 @@ export async function getModelProgress(): Promise<ModelProgressRow[]> {
   const modelIds = Array.from(modelMap.keys())
   const { data: produced } = await supabase
     .from('period_log')
-    .select('model_id, actual')
+    .select('model_id, actual, stations!inner(sequence)')
     .in('model_id', modelIds)
+
+  // Only count actuals from the furthest station each model has reached.
+  // A unit is "produced" when it exits the last station in the flow — summing
+  // all stations would count the same unit multiple times.
+  const modelMaxSeq = new Map<string, number>()
+  for (const row of produced ?? []) {
+    const seq = (row.stations as { sequence: number }).sequence
+    const cur = modelMaxSeq.get(row.model_id) ?? 0
+    if (seq > cur) modelMaxSeq.set(row.model_id, seq)
+  }
 
   const producedMap = new Map<string, number>()
   for (const row of produced ?? []) {
-    producedMap.set(row.model_id, (producedMap.get(row.model_id) ?? 0) + row.actual)
+    const seq = (row.stations as { sequence: number }).sequence
+    if (seq === modelMaxSeq.get(row.model_id)) {
+      producedMap.set(row.model_id, (producedMap.get(row.model_id) ?? 0) + row.actual)
+    }
   }
 
   return Array.from(modelMap.entries())
