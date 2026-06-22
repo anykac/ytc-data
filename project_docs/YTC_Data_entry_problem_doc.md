@@ -4,7 +4,7 @@
 
 ## **1.1 Problem statement**
 
-Factory production planning is currently tracked in a single Excel/Google Sheets workbook where every working day is stored as its own separate tab. Each tab records target versus actual output across multiple workstations, broken into time periods (P-1 through P-6), capturing model, target, actual, headcount (PAX), and defects.
+Factory production planning is currently tracked in a single Excel/Google Sheets workbook where every working day is stored as its own separate tab. Each tab records target versus actual output across multiple workstations, broken into time periods (P-1 through P-6 plus an optional Overtime period), capturing model, target, actual, headcount (PAX), and defects.
 
 This structure makes cross-day analysis nearly impossible without manual effort. Station names are spelled inconsistently across tabs, balance figures are buried in free-text note cells, and answering a basic question like “how did this week perform?” requires manually opening and reconciling dozens of tabs. The data is valuable but effectively trapped.
 
@@ -82,7 +82,7 @@ Approximate scale: ~8 stations, 4 supervisors, and a few rotating line leads per
 
 | ID | Requirement | Priority |
 | :---- | :---- | ----- |
-| **FR-1.1** | Operator selects station, period (P-1 to P-6), and model from a dropdown populated by the station table, and enters Target output, Actual output, PAX (people on the station), Defects | P0 |
+| **FR-1.1** | Operator selects station, period (P-1 to P-6, or Overtime), and model from a dropdown populated by the station table, and enters Target output, Actual output, PAX (people on the station), Defects | P0 |
 | **FR-1.2** | Model auto-fills based on the day's order plan, with manual override | P1 |
 | **FR-1.3** | Submit writes one row of data to the main table | P0 |
 | **FR-1.4** | Form works on any computer or mobile browser without app installation | P0 |
@@ -171,7 +171,7 @@ period_log                    period_log_edits
 ──────────                    ────────────────
 id                            id
 date                          period_log_id → period_log
-period (P1–P6)                edited_by → leads
+period (P1–P6, OT)                edited_by → leads
 station_id → stations         edited_at
 model_id → models             prev_target / new_target
 target                        prev_actual / new_actual

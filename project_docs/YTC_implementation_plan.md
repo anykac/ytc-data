@@ -22,7 +22,8 @@
 - `.env.local` for secrets — never commit to git; commit `.env.example` with placeholder values
 - Supabase free tier: stay under 500 MB DB storage, 50k MAU
 - Soft deletes only — never `DELETE` from `stations`, `models`, `orders`, `order_lines`, `leads`; set `active = false`
-- Valid periods: `'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6'` (enforced at DB level)
+- Valid periods: `'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'OT'` — OT is the Overtime period, logged after P6 on days when the shift runs long (enforced at DB level)
+- **Migration required:** `supabase/migrations/20260621000000_initial_schema.sql` has `CHECK (period IN ('P1','P2','P3','P4','P5','P6'))` — a new migration must add `'OT'` to this constraint before the entry form and server actions can accept it
 - Valid roles: `'supervisor' | 'admin'` (line leads are in `leads` table, not `auth.users`)
 
 ---

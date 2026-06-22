@@ -101,7 +101,7 @@ user_roles (id, user_id UUID, role TEXT)  -- role: 'supervisor' | 'admin'
 
 -- Production logs
 period_log (
-  id, date DATE, period TEXT,   -- period: 'P1'–'P6'
+  id, date DATE, period TEXT,   -- period: 'P1'–'P6' | 'OT' (Overtime)
   station_id, model_id,
   target INT, actual INT, pax INT, defects INT,
   submitted_by,                 -- leads.id
@@ -157,7 +157,7 @@ No login required. Form is accessible directly at `/entry`.
 │  YTC Production Log          │
 │                              │
 │  Station   [dropdown]        │
-│  Period    [P1–P6]           │
+│  Period    [P1–P6, OT]       │
 │  Model     [dropdown]        │
 │                              │
 │  Target    [number]          │
