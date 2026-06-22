@@ -788,7 +788,7 @@ git commit -m "feat: Google OAuth login page and callback handler"
 **Files:**
 - Create: `actions/entry.ts`, `__tests__/entry-actions.test.ts`
 
-- [ ] **Write failing tests**
+- [x] **Write failing tests**
 
 ```typescript
 // __tests__/entry-actions.test.ts
@@ -847,13 +847,13 @@ describe('submitEntry', () => {
 })
 ```
 
-- [ ] **Run tests to confirm they fail**
+- [x] **Run tests to confirm they fail**
 
 ```bash
 npm test -- entry-actions
 ```
 
-- [ ] **Create `actions/entry.ts`**
+- [x] **Create `actions/entry.ts`**
 
 ```typescript
 'use server'
@@ -985,13 +985,13 @@ export async function searchEntries(stationId: string, period: string, date: str
 }
 ```
 
-- [ ] **Run tests — confirm they pass**
+- [x] **Run tests — confirm they pass**
 
 ```bash
 npm test -- entry-actions
 ```
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add actions/entry.ts __tests__/entry-actions.test.ts
@@ -1017,9 +1017,9 @@ type Model   = { id: string; name: string }
 type Lead    = { id: string; name: string }
 ```
 
-- [ ] **Create `components/ui/ConfirmDialog.tsx`** — a modal that shows a message with Confirm and Cancel buttons. Accept `message: string`, `onConfirm: () => void`, `onCancel: () => void` props.
+- [x] **Create `components/ui/ConfirmDialog.tsx`** — a modal that shows a message with Confirm and Cancel buttons. Accept `message: string`, `onConfirm: () => void`, `onCancel: () => void` props.
 
-- [ ] **Create `components/entry/EntryForm.tsx`**
+- [x] **Create `components/entry/EntryForm.tsx`**
 
 This is a client component (`'use client'`). It receives `stations`, `models`, and `leads` as props and calls `submitEntry` on submit.
 
@@ -1039,7 +1039,7 @@ Behaviour:
 
 The date field should default to today (`new Date().toISOString().split('T')[0]`).
 
-- [ ] **Create `app/entry/page.tsx`** — server component that fetches dropdowns and renders `EntryForm`
+- [x] **Create `app/entry/page.tsx`** — server component that fetches dropdowns and renders `EntryForm`
 
 ```typescript
 import { createClient } from '@/lib/supabase/server'
@@ -1079,7 +1079,7 @@ npm run dev
 5. Confirm duplicate → confirm second row written
 6. Submit with wrong password → confirm error message, no DB row
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add components/entry/ components/ui/ConfirmDialog.tsx app/entry/
