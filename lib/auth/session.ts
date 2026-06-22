@@ -21,7 +21,7 @@ export async function requireRole(minRole: UserRole) {
     .maybeSingle()
 
   if (error) throw error
-  if (!data) redirect('/login')
+  if (!data) redirect('/login?error=unauthorized')
 
   // Explicit allowlist per required level — exhaustive so any unexpected role is rejected
   const allowed: Record<UserRole, UserRole[]> = {
