@@ -201,6 +201,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
                 type="number"
                 required
                 min={0}
+                max={field === 'defects' && form.actual !== '' ? Number(form.actual) : undefined}
                 value={form[field]}
                 onChange={e => set(field, e.target.value)}
                 className={INPUT_CLS}

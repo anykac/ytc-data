@@ -125,6 +125,7 @@ period_log_edits (
 - **`period_log` tracks `model_id`, not `order_line_id`.** Multiple orders can consolidate production of the same model on the line simultaneously. Order progress is computed at the model level (see section 5.3).
 - **Soft deletes everywhere.** `active = false` hides records from dropdowns and new entries without breaking historical FK references.
 - **No unique constraint on `(date, period, station_id, model_id)`.** Models can change mid-period, producing multiple rows for the same station+period. The server warns on duplicates but allows after user confirmation.
+- **`defects` cannot exceed `actual`.** A defect count greater than the actual output is physically impossible. Enforced at three layers: HTML `max` attribute on the client (caps the Defects input at the current Actual value), server action validation (rejects before any DB write), and a DB-level `CHECK (defects <= actual)` constraint on `period_log`.
 - **Station sequencing.** `stations.sequence` defines the linear production flow. Output of station N = available input to station N+1 (1:1 unit ratio).
 
 ---
@@ -241,6 +242,7 @@ Line lead writes bypass RLS using the Supabase **service role key** (server-side
 | Wrong lead password | Inline error: "Incorrect password — submission not recorded." Nothing written. |
 | Duplicate `(date, period, station, model)` | Warning prompt: "An entry already exists for this combination. Submit anyway?" Proceed only on explicit confirmation. |
 | Form validation failure (missing field, non-numeric) | Inline field errors before submission attempt. |
+| Defects exceed actual output | Client blocks submission (Defects field `max` = current Actual value). Server action also rejects with "Defects cannot exceed actual output." DB CHECK constraint provides final guard. |
 | Supabase write failure | Generic error: "Submission failed — please try again." Entry not recorded. |
 | Session expired (Supervisor/Admin) | Redirect to login page. |
 | Unauthorised route access | Redirect to login or 403 page based on role check. |
