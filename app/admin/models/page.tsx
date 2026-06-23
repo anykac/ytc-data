@@ -1,7 +1,9 @@
+import { requireRole } from '@/lib/auth/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ModelsAdmin from './ModelsAdmin'
 
 export default async function ModelsPage() {
+  await requireRole('supervisor')
   const supabase = createAdminClient()
   const [{ data: models, error: me }, { data: stations, error: se }] = await Promise.all([
     supabase.from('models').select('id, name, active').order('name'),

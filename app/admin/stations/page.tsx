@@ -1,7 +1,9 @@
+import { requireRole } from '@/lib/auth/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 import StationsAdmin from './StationsAdmin'
 
 export default async function StationsPage() {
+  await requireRole('supervisor')
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('stations')

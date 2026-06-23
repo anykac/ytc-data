@@ -41,7 +41,7 @@ export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]
   async function submit(data: Form) {
     setSaving(true); setError('')
     try {
-      await upsertOrder({ ...data, lines: data.lines.filter((l) => l.modelId) })
+      await upsertOrder({ ...data, lines: data.lines.filter((l) => l.modelId && l.quantity > 0) })
       setForm(null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed')
@@ -137,8 +137,8 @@ export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]
             { key: 'active', label: 'Status' },
           ]}
           rows={displayOrders}
-          onEdit={(r) => edit(orders.find((o) => o.id === r.id)!)}
-          onToggleActive={(r) => toggleActive(orders.find((o) => o.id === r.id)!)}
+          onEdit={(r) => { const o = orders.find((x) => x.id === r.id); if (o) edit(o) }}
+          onToggleActive={(r) => { const o = orders.find((x) => x.id === r.id); if (o) toggleActive(o) }}
         />
       </div>
     </div>
