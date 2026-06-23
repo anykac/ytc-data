@@ -1,5 +1,6 @@
 'use client'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Combobox from './Combobox'
 
 type Model = { id: string; name: string }
 
@@ -7,26 +8,18 @@ export default function ModelPicker({ models, selectedId }: { models: Model[]; s
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
+  function onChange(id: string | undefined) {
     const params = new URLSearchParams(searchParams.toString())
-    if (e.target.value) {
-      params.set('modelId', e.target.value)
-    } else {
-      params.delete('modelId')
-    }
+    if (id) { params.set('modelId', id) } else { params.delete('modelId') }
     router.push(`?${params.toString()}`)
   }
 
   return (
-    <select
-      value={selectedId ?? ''}
+    <Combobox
+      options={models.map((m) => ({ id: m.id, label: m.name }))}
+      value={selectedId}
       onChange={onChange}
-      className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white"
-    >
-      <option value="">All models</option>
-      {models.map((m) => (
-        <option key={m.id} value={m.id}>{m.name}</option>
-      ))}
-    </select>
+      placeholder="All models"
+    />
   )
 }

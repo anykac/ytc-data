@@ -1,5 +1,6 @@
 'use client'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Combobox from './Combobox'
 
 type Order = { id: string; order_number: string }
 
@@ -7,28 +8,19 @@ export default function OrderPicker({ orders, selectedId }: { orders: Order[]; s
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
+  function onChange(id: string | undefined) {
     const params = new URLSearchParams(searchParams.toString())
-    if (e.target.value) {
-      params.set('orderId', e.target.value)
-    } else {
-      params.delete('orderId')
-    }
-    // Clear model when order changes — model list will change
-    params.delete('modelId')
+    if (id) { params.set('orderId', id) } else { params.delete('orderId') }
+    params.delete('modelId') // clear model when order changes
     router.push(`?${params.toString()}`)
   }
 
   return (
-    <select
-      value={selectedId ?? ''}
+    <Combobox
+      options={orders.map((o) => ({ id: o.id, label: o.order_number }))}
+      value={selectedId}
       onChange={onChange}
-      className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white"
-    >
-      <option value="">All orders</option>
-      {orders.map((o) => (
-        <option key={o.id} value={o.id}>{o.order_number}</option>
-      ))}
-    </select>
+      placeholder="All orders"
+    />
   )
 }
