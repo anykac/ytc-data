@@ -9,11 +9,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <nav className="w-48 shrink-0 border-r border-gray-200 bg-white px-3 py-6 space-y-1">
         <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Admin</p>
         {[
-          { href: '/admin/stations', label: 'Stations' },
-          { href: '/admin/models',   label: 'Models' },
           { href: '/admin/orders',   label: 'Orders' },
-          { href: '/admin/leads',    label: 'Leads' },
+          { href: '/admin/models',   label: 'Models' },
+          { href: '/admin/stations', label: 'Stations' },
           { href: '/admin/accounts', label: 'Accounts' },
+          { href: '/admin/leads',    label: 'Leads' },
         ].map(({ href, label }) => (
           <Link
             key={href}
