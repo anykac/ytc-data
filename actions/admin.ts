@@ -36,11 +36,35 @@ export async function upsertStation(data: {
       .eq('id', data.id)
     if (error) throw error
   } else {
+    // Shift all existing stations at or above the insertion sequence up by 1,
+    // highest first to avoid any ordering issues.
+    const { data: toShift, error: fetchError } = await supabase
+      .from('stations')
+      .select('id, sequence')
+      .gte('sequence', data.sequence)
+      .order('sequence', { ascending: false })
+    if (fetchError) throw fetchError
+
+    for (const s of toShift ?? []) {
+      const { error: shiftError } = await supabase
+        .from('stations').update({ sequence: s.sequence + 1 }).eq('id', s.id)
+      if (shiftError) throw shiftError
+    }
+
     const { error } = await supabase
       .from('stations')
       .insert({ name: data.name, sequence: data.sequence, active: data.active })
     if (error) throw error
   }
+  revalidatePath('/admin/stations')
+}
+
+export async function deleteStation(id: string) {
+  assertUuid(id, 'station id')
+  await requireRole('supervisor')
+  const supabase = createAdminClient()
+  const { error } = await supabase.from('stations').delete().eq('id', id)
+  if (error) throw new Error('Cannot delete: station has historical production logs')
   revalidatePath('/admin/stations')
 }
 

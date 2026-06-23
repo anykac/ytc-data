@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { upsertStation } from '@/actions/admin'
+import { upsertStation, deleteStation } from '@/actions/admin'
 import CrudTable from '@/components/admin/CrudTable'
 
 type Station = { id: string; name: string; sequence: number; active: boolean }
@@ -13,6 +13,18 @@ export default function StationsAdmin({ stations }: { stations: Station[] }) {
 
   function edit(s: Station) { setForm({ ...s }); setError('') }
   function toggleActive(s: Station) { submit({ ...s, active: !s.active }) }
+
+  async function handleDelete(s: Station) {
+    if (!confirm(`Permanently delete "${s.name}"? This cannot be undone.`)) return
+    setSaving(true); setError('')
+    try {
+      await deleteStation(s.id)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Delete failed')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function submit(data: typeof form) {
     if (!data) return
@@ -77,6 +89,7 @@ export default function StationsAdmin({ stations }: { stations: Station[] }) {
           rows={stations}
           onEdit={edit}
           onToggleActive={toggleActive}
+          onDelete={handleDelete}
         />
       </div>
     </div>

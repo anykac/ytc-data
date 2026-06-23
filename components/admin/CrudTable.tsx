@@ -7,6 +7,7 @@ type CrudTableProps<T extends { id: string; active?: boolean }> = {
   rows: T[]
   onEdit: (row: T) => void
   onToggleActive: (row: T) => void
+  onDelete?: (row: T) => void
 }
 
 export default function CrudTable<T extends { id: string; active?: boolean }>({
@@ -14,6 +15,7 @@ export default function CrudTable<T extends { id: string; active?: boolean }>({
   rows,
   onEdit,
   onToggleActive,
+  onDelete,
 }: CrudTableProps<T>) {
   if (rows.length === 0) {
     return <p className="text-sm text-gray-500 py-8 text-center">No records yet.</p>
@@ -53,6 +55,14 @@ export default function CrudTable<T extends { id: string; active?: boolean }>({
                 >
                   {row.active === false ? 'Activate' : 'Deactivate'}
                 </button>
+                {onDelete && row.active === false && (
+                  <button
+                    onClick={() => onDelete(row)}
+                    className="text-xs font-medium text-red-500 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
+                )}
               </td>
             </tr>
           ))}
