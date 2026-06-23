@@ -23,7 +23,7 @@ export default function OrderPicker({ orders, selectedId }: { orders: Order[]; s
     <select
       value={selectedId ?? ''}
       onChange={onChange}
-      className="border rounded px-3 py-1.5 text-sm"
+      className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white"
     >
       <option value="">All orders</option>
       {orders.map((o) => (

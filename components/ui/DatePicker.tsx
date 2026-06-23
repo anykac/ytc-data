@@ -7,7 +7,7 @@ export default function DatePicker({ value }: { value: string }) {
     <input
       type="date"
       defaultValue={value}
-      className="border rounded px-3 py-1.5 text-sm"
+      className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white"
       onChange={(e) => router.push(`?date=${e.target.value}`)}
     />
   )
