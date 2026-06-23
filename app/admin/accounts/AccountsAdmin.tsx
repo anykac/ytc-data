@@ -25,7 +25,8 @@ export default function AccountsAdmin({ users }: { users: User[] }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
       <h1 className="text-xl font-semibold text-gray-900">Accounts</h1>
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full text-sm">
@@ -61,6 +62,7 @@ export default function AccountsAdmin({ users }: { users: User[] }) {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   )

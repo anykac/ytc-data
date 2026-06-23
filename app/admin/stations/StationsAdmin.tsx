@@ -28,14 +28,7 @@ export default function StationsAdmin({ stations }: { stations: Station[] }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Stations</h1>
-        <button onClick={() => { setForm(blank()); setError('') }} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
-          + New station
-        </button>
-      </div>
-
+    <div className="space-y-4">
       {form && (
         <form onSubmit={(e) => { e.preventDefault(); submit(form) }} className="bg-white border border-gray-200 rounded-lg p-4 space-y-4 max-w-md shadow-sm">
           <h2 className="font-medium text-gray-800">{form.id ? 'Edit station' : 'New station'}</h2>
@@ -68,16 +61,24 @@ export default function StationsAdmin({ stations }: { stations: Station[] }) {
         </form>
       )}
 
-      <CrudTable
-        columns={[
-          { key: 'sequence', label: 'Seq' },
-          { key: 'name', label: 'Name' },
-          { key: 'active', label: 'Status' },
-        ]}
-        rows={stations}
-        onEdit={edit}
-        onToggleActive={toggleActive}
-      />
+      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-900">Stations</h1>
+          <button onClick={() => { setForm(blank()); setError('') }} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+            + New station
+          </button>
+        </div>
+        <CrudTable
+          columns={[
+            { key: 'sequence', label: 'Seq' },
+            { key: 'name', label: 'Name' },
+            { key: 'active', label: 'Status' },
+          ]}
+          rows={stations}
+          onEdit={edit}
+          onToggleActive={toggleActive}
+        />
+      </div>
     </div>
   )
 }

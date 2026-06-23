@@ -56,13 +56,7 @@ export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]
   }))
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Orders</h1>
-        <button onClick={() => { setForm(blank()); setError('') }} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
-          + New order
-        </button>
-      </div>
+    <div className="space-y-4">
 
       {form && (
         <form onSubmit={(e) => { e.preventDefault(); submit(form) }} className="bg-white border border-gray-200 rounded-lg p-4 space-y-4 max-w-lg shadow-sm">
@@ -127,18 +121,26 @@ export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]
         </form>
       )}
 
-      <CrudTable
-        columns={[
-          { key: 'order_number', label: 'Order #' },
-          { key: 'order_date', label: 'Order date' },
-          { key: 'due_date', label: 'Due date' },
-          { key: 'line_summary' as keyof typeof displayOrders[0], label: 'Models' },
-          { key: 'active', label: 'Status' },
-        ]}
-        rows={displayOrders}
-        onEdit={(r) => edit(orders.find((o) => o.id === r.id)!)}
-        onToggleActive={(r) => toggleActive(orders.find((o) => o.id === r.id)!)}
-      />
+      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-900">Orders</h1>
+          <button onClick={() => { setForm(blank()); setError('') }} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+            + New order
+          </button>
+        </div>
+        <CrudTable
+          columns={[
+            { key: 'order_number', label: 'Order #' },
+            { key: 'order_date', label: 'Order date' },
+            { key: 'due_date', label: 'Due date' },
+            { key: 'line_summary' as keyof typeof displayOrders[0], label: 'Models' },
+            { key: 'active', label: 'Status' },
+          ]}
+          rows={displayOrders}
+          onEdit={(r) => edit(orders.find((o) => o.id === r.id)!)}
+          onToggleActive={(r) => toggleActive(orders.find((o) => o.id === r.id)!)}
+        />
+      </div>
     </div>
   )
 }
