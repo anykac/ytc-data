@@ -28,6 +28,22 @@ describe('getDailySummary', () => {
   })
 })
 
+describe('getDailySummary with modelIds filter', () => {
+  it('calls .in() with modelIds when provided and returns filtered rows', async () => {
+    const inMock = jest.fn().mockReturnValue({
+      data: [{ target: 100, actual: 80, defects: 3, stations: { id: 's1', name: 'Station 1', sequence: 1 } }],
+      error: null,
+    })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({ select: () => ({ eq: () => ({ in: inMock }) }) }),
+    })
+    const rows = await getDailySummary('2026-06-21', ['model-a'])
+    expect(inMock).toHaveBeenCalledWith('model_id', ['model-a'])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].stationName).toBe('Station 1')
+  })
+})
+
 describe('getPipelineData', () => {
   it('computes WIP as upstream actual minus current station actual', async () => {
     ;(createAdminClient as jest.Mock).mockReturnValue({
