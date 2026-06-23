@@ -40,12 +40,3 @@ export async function getFilteredModels(orderId?: string): Promise<ActiveModel[]
   return data ?? []
 }
 
-/** Resolves the modelIds to pass to dashboard queries from URL params. */
-export async function resolveModelIds(orderId?: string, modelId?: string): Promise<string[] | undefined> {
-  if (modelId) return [modelId]
-  if (orderId) {
-    const models = await getFilteredModels(orderId)
-    return models.map((m) => m.id)
-  }
-  return undefined
-}

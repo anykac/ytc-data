@@ -30,10 +30,12 @@ export default function Combobox({ options, value, onChange, placeholder, classN
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [])
 
-  // Sync input text when selected value changes externally (e.g. order change clears model)
+  // Sync input text when the selected ID changes externally (e.g. order change clears model).
+  // Depend on `value` (stable prop) not `selected` (new object reference each render).
   useEffect(() => {
-    setQuery(selected?.label ?? '')
-  }, [selected])
+    setQuery(options.find((o) => o.id === value)?.label ?? '')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
 
   function select(option: Option | undefined) {
     onChange(option?.id)

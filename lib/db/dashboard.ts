@@ -18,8 +18,10 @@ export async function getDailySummary(date: string, modelIds?: string[]): Promis
     .select('target, actual, defects, stations!inner(id, name, sequence)')
     .eq('date', date)
 
+  if (modelIds && modelIds.length === 0) return []
+
   const { data, error } = await (
-    modelIds && modelIds.length > 0 ? baseQuery.in('model_id', modelIds) : baseQuery
+    modelIds ? baseQuery.in('model_id', modelIds) : baseQuery
   )
 
   if (error) throw error
