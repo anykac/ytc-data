@@ -43,13 +43,13 @@ export default function LeadsAdmin({ leads }: { leads: Lead[] }) {
       </div>
 
       {form && (
-        <form onSubmit={(e) => { e.preventDefault(); submit(form) }} className="bg-gray-50 border rounded-lg p-4 space-y-4 max-w-md">
+        <form onSubmit={(e) => { e.preventDefault(); submit(form) }} className="bg-white border border-gray-200 rounded-lg p-4 space-y-4 max-w-md shadow-sm">
           <h2 className="font-medium text-gray-800">{form.id ? 'Edit lead' : 'New lead'}</h2>
           <div className="space-y-3">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Name</label>
               <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="border rounded px-3 py-1.5 text-sm w-full" />
+                className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full" />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">
@@ -57,7 +57,7 @@ export default function LeadsAdmin({ leads }: { leads: Lead[] }) {
               </label>
               <input type="password" required={!form.id} value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="border rounded px-3 py-1.5 text-sm w-full" />
+                className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full" />
             </div>
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />

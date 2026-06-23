@@ -65,23 +65,23 @@ export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]
       </div>
 
       {form && (
-        <form onSubmit={(e) => { e.preventDefault(); submit(form) }} className="bg-gray-50 border rounded-lg p-4 space-y-4 max-w-lg">
+        <form onSubmit={(e) => { e.preventDefault(); submit(form) }} className="bg-white border border-gray-200 rounded-lg p-4 space-y-4 max-w-lg shadow-sm">
           <h2 className="font-medium text-gray-800">{form.id ? 'Edit order' : 'New order'}</h2>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="block text-sm text-gray-600 mb-1">Order number</label>
               <input required value={form.orderNumber} onChange={(e) => setForm({ ...form, orderNumber: e.target.value })}
-                className="border rounded px-3 py-1.5 text-sm w-full" />
+                className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full" />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Order date</label>
               <input required type="date" value={form.orderDate} onChange={(e) => setForm({ ...form, orderDate: e.target.value })}
-                className="border rounded px-3 py-1.5 text-sm w-full" />
+                className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full" />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Due date</label>
               <input required type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                className="border rounded px-3 py-1.5 text-sm w-full" />
+                className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full" />
             </div>
           </div>
 
@@ -97,7 +97,7 @@ export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]
                   </select>
                   <input required type="number" min={1} placeholder="Qty" value={line.quantity || ''}
                     onChange={(e) => setLine(i, 'quantity', parseInt(e.target.value) || 0)}
-                    className="border rounded px-2 py-1.5 text-sm w-24" />
+                    className="border rounded px-2 py-1.5 text-sm text-gray-900 bg-white w-24" />
                   {form.lines.length > 1 && (
                     <button type="button" onClick={() => setForm({ ...form, lines: form.lines.filter((_, idx) => idx !== i) })}
                       className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>

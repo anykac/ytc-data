@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { upsertModel } from '@/actions/admin'
 import CrudTable from '@/components/admin/CrudTable'
 
@@ -10,11 +10,15 @@ type Form = { id?: string; name: string; active: boolean; stationIds: string[] }
 const blank = (): Form => ({ name: '', active: true, stationIds: [] })
 
 export default function ModelsAdmin({
-  models, stations, configs,
+  models, stations, configs: configsProp,
 }: { models: Model[]; stations: Station[]; configs: Config[] }) {
+  const [configs, setConfigs] = useState(configsProp)
   const [form, setForm] = useState<Form | null>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Sync when server re-renders with fresh config data after a save
+  useEffect(() => { setConfigs(configsProp) }, [configsProp])
 
   function configFor(modelId: string) {
     return configs.filter((c) => c.model_id === modelId).map((c) => c.station_id)
@@ -59,21 +63,21 @@ export default function ModelsAdmin({
       </div>
 
       {form && (
-        <form onSubmit={(e) => { e.preventDefault(); submit(form) }} className="bg-gray-50 border rounded-lg p-4 space-y-4 max-w-md">
+        <form onSubmit={(e) => { e.preventDefault(); submit(form) }} className="bg-white border border-gray-200 rounded-lg p-4 space-y-4 max-w-md shadow-sm">
           <h2 className="font-medium text-gray-800">{form.id ? 'Edit model' : 'New model'}</h2>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
               <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="border rounded px-3 py-1.5 text-sm w-full" />
+                className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full" />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-2">Stations this model flows through</label>
-              <div className="space-y-1 max-h-48 overflow-y-auto border rounded p-2 bg-white">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Stations this model flows through</label>
+              <div className="space-y-1 max-h-48 overflow-y-auto border rounded p-2 bg-gray-50">
                 {stations.map((s) => (
-                  <label key={s.id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <label key={s.id} className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer hover:bg-white rounded px-1 py-0.5">
                     <input type="checkbox" checked={form.stationIds.includes(s.id)} onChange={() => toggleStation(s.id)} />
-                    <span className="text-gray-400 text-xs w-5">{s.sequence}</span>
+                    <span className="text-gray-400 text-xs w-5 shrink-0">{s.sequence}</span>
                     {s.name}
                   </label>
                 ))}
