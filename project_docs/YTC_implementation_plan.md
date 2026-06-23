@@ -1689,41 +1689,52 @@ git commit -m "feat: pipeline view and model progress dashboard views"
 
 ---
 
-### Task 5.4 🟢 Ryo: Model filter for Daily Summary and Pipeline views
+### Task 5.4 🟢 Ryo: Order + model filter for Daily Summary and Pipeline views
 
-**Context:** When multiple models run on the same stations in a day, `getDailySummary` and `getPipelineData` aggregate all models together per station. This makes attainment figures misleading — a station running two models looks like one combined number. A model selector lets supervisors isolate one model's performance. The Model Progress view is already model-scoped and does not need this filter (FR-2.6, promoted to P0).
+**Context:** When multiple models run on the same stations in a day, `getDailySummary` and `getPipelineData` aggregate all models together per station, making attainment figures meaningless. Orders can also have overlapping models, so supervisors need to scope the view to a specific order first, then optionally drill into a single model within it.
+
+**Data model note:** `period_log` stores `model_id`, not `order_id`. "Filter by order" means "restrict to model IDs that belong to this order's line items" — production that fulfils multiple overlapping orders for the same model cannot be separated at the log level.
+
+**URL params:** `?orderId=<uuid>&modelId=<uuid>` — same pattern as the existing `?date=` param. Both are optional. Selecting an order with no model selected shows all models in that order aggregated. Selecting a model with no order shows that model across all orders (equivalent to the old model-only filter).
 
 **Files:**
-- Modify: `lib/db/dashboard.ts` — add optional `modelId` param to `getDailySummary` and `getPipelineData`
-- Modify: `app/dashboard/page.tsx` — add model selector, pass `modelId` to query
+- Modify: `lib/db/dashboard.ts` — add optional `modelId` and `modelIds` params to `getDailySummary` and `getPipelineData`
+- Modify: `app/dashboard/page.tsx` — add order + model selectors, resolve modelIds from orderId, pass to queries
 - Modify: `app/dashboard/pipeline/page.tsx` — same
-- Create: `components/ui/ModelPicker.tsx` — client component, dropdown of active models
+- Create: `components/ui/OrderPicker.tsx` — client component, dropdown of active orders
+- Create: `components/ui/ModelPicker.tsx` — client component, dropdown filtered to selected order's models (or all active models if no order selected)
 - Modify: `__tests__/dashboard-queries.test.ts` — add tests for filtered queries
 
 **Design:**
 
-Model filter is passed as a URL search param `?modelId=<uuid>` — same pattern as the existing date param. Default (no modelId) returns all models aggregated (current behaviour).
+- [ ] **Update `getDailySummary` and `getPipelineData`** to accept an optional `modelIds: string[] | undefined` param. When provided, replace `.eq('model_id', modelId)` with `.in('model_id', modelIds)` on the `period_log` query.
 
-- [ ] **Update `getDailySummary` and `getPipelineData`** to accept an optional `modelId: string | undefined` param. When provided, add `.eq('model_id', modelId)` to the `period_log` query before the existing `.eq('date', date)`.
+- [ ] **Create `components/ui/OrderPicker.tsx`** — client component. Props: `orders: { id: string; order_number: string }[]`, `selectedId: string | undefined`. Renders a `<select>` with an "All orders" option. On change, pushes `?orderId=<id>` and clears `modelId` from the URL (model list changes when order changes).
 
-- [ ] **Create `components/ui/ModelPicker.tsx`** — client component. Props: `models: { id: string; name: string }[]`, `selectedId: string | undefined`. Renders a `<select>` with an "All models" option and one option per model. On change, pushes `?modelId=<id>` (or removes the param for "All") to the URL using `useRouter`.
+- [ ] **Create `components/ui/ModelPicker.tsx`** — client component. Props: `models: { id: string; name: string }[]`, `selectedId: string | undefined`. Renders a `<select>` with an "All models" option. The model list is pre-filtered server-side to the selected order's models (or all active models if no order). On change, pushes `?modelId=<id>` to the URL, preserving `orderId`.
 
-- [ ] **Update `app/dashboard/page.tsx`** — fetch active models server-side (query `models` table where `active = true`), read `modelId` from `searchParams`, pass both to `getDailySummary` and `ModelPicker`.
+- [ ] **Update `app/dashboard/page.tsx`** — server-side:
+  1. Read `orderId` and `modelId` from `searchParams`
+  2. If `orderId` is set: query `order_lines` for that order to get its `model_id` list; pass as `modelIds` to `getDailySummary`; fetch only those models for `ModelPicker`
+  3. If `modelId` is also set: filter `modelIds` down to just that one
+  4. If neither is set: pass `modelIds = undefined` (all models, current behaviour)
+  5. Fetch all active orders for `OrderPicker`
 
 - [ ] **Update `app/dashboard/pipeline/page.tsx`** — same pattern.
 
-- [ ] **Add tests** for `getDailySummary` with a `modelId` argument — confirm the mock chain receives the correct `.eq('model_id', ...)` call.
+- [ ] **Add tests** for `getDailySummary` with a `modelIds` argument — confirm `.in('model_id', [...])` is called correctly.
 
 - [ ] **Manually verify**
-  1. With multiple models in the DB, open Daily Summary — confirm "All models" shows aggregated figures
-  2. Select one model — confirm only that model's station rows appear
-  3. Switch to Pipeline — confirm model selector state carries across tabs
+  1. With multiple orders and models in the DB, open Daily Summary — "All orders / All models" shows full aggregated figures
+  2. Select an order → only models in that order appear in the model dropdown; station rows filter to those models
+  3. Select a model within the order → single model view
+  4. Switch to Pipeline → order + model selection carries across tabs
 
 - [ ] **Commit**
 
 ```bash
-git add lib/db/dashboard.ts app/dashboard/ components/ui/ModelPicker.tsx __tests__/dashboard-queries.test.ts
-git commit -m "feat: model filter for daily summary and pipeline views (FR-2.6)"
+git add lib/db/dashboard.ts app/dashboard/ components/ui/OrderPicker.tsx components/ui/ModelPicker.tsx __tests__/dashboard-queries.test.ts
+git commit -m "feat: order + model filter for daily summary and pipeline views (FR-2.6)"
 ```
 
 ---

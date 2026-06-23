@@ -271,7 +271,7 @@ Line lead writes bypass RLS using the Supabase **service role key** (server-side
 - Daily summary dashboard (FR-2.1)
 - Model progress view — model-level, sorted by due date (FR-2.3)
 - Pipeline view with gap-to-goal (implied by station sequencing design)
-- **Model filter on Daily Summary and Pipeline views** (FR-2.6) — required because multi-model days produce meaningless aggregated attainment figures without it
+- **Order + model filter on Daily Summary and Pipeline views** (FR-2.6) — required because multi-model days produce meaningless aggregated attainment figures without it. Order selector scopes to the models in that order; model selector drills down within it. Note: because `period_log` stores `model_id` not `order_id`, "filter by order" means "show only models belonging to this order" — production shared across overlapping orders for the same model cannot be split at the log level.
 - Stations / models / orders / leads CRUD (FR-3.1, FR-3.3)
 - RBAC setup — Line Lead, Supervisor, Admin (FR-4.1)
 - Google OAuth for Supervisor/Admin (FR-4.2)
