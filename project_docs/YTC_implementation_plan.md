@@ -1689,6 +1689,45 @@ git commit -m "feat: pipeline view and model progress dashboard views"
 
 ---
 
+### Task 5.4 🟢 Ryo: Model filter for Daily Summary and Pipeline views
+
+**Context:** When multiple models run on the same stations in a day, `getDailySummary` and `getPipelineData` aggregate all models together per station. This makes attainment figures misleading — a station running two models looks like one combined number. A model selector lets supervisors isolate one model's performance. The Model Progress view is already model-scoped and does not need this filter (FR-2.6, promoted to P0).
+
+**Files:**
+- Modify: `lib/db/dashboard.ts` — add optional `modelId` param to `getDailySummary` and `getPipelineData`
+- Modify: `app/dashboard/page.tsx` — add model selector, pass `modelId` to query
+- Modify: `app/dashboard/pipeline/page.tsx` — same
+- Create: `components/ui/ModelPicker.tsx` — client component, dropdown of active models
+- Modify: `__tests__/dashboard-queries.test.ts` — add tests for filtered queries
+
+**Design:**
+
+Model filter is passed as a URL search param `?modelId=<uuid>` — same pattern as the existing date param. Default (no modelId) returns all models aggregated (current behaviour).
+
+- [ ] **Update `getDailySummary` and `getPipelineData`** to accept an optional `modelId: string | undefined` param. When provided, add `.eq('model_id', modelId)` to the `period_log` query before the existing `.eq('date', date)`.
+
+- [ ] **Create `components/ui/ModelPicker.tsx`** — client component. Props: `models: { id: string; name: string }[]`, `selectedId: string | undefined`. Renders a `<select>` with an "All models" option and one option per model. On change, pushes `?modelId=<id>` (or removes the param for "All") to the URL using `useRouter`.
+
+- [ ] **Update `app/dashboard/page.tsx`** — fetch active models server-side (query `models` table where `active = true`), read `modelId` from `searchParams`, pass both to `getDailySummary` and `ModelPicker`.
+
+- [ ] **Update `app/dashboard/pipeline/page.tsx`** — same pattern.
+
+- [ ] **Add tests** for `getDailySummary` with a `modelId` argument — confirm the mock chain receives the correct `.eq('model_id', ...)` call.
+
+- [ ] **Manually verify**
+  1. With multiple models in the DB, open Daily Summary — confirm "All models" shows aggregated figures
+  2. Select one model — confirm only that model's station rows appear
+  3. Switch to Pipeline — confirm model selector state carries across tabs
+
+- [ ] **Commit**
+
+```bash
+git add lib/db/dashboard.ts app/dashboard/ components/ui/ModelPicker.tsx __tests__/dashboard-queries.test.ts
+git commit -m "feat: model filter for daily summary and pipeline views (FR-2.6)"
+```
+
+---
+
 ## Milestone 6: Keep-alive + Root Routes + Deploy 🔵 Anyka
 
 ### Task 6.1: Keep-alive endpoint + root redirect
