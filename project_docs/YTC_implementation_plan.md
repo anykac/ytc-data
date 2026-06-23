@@ -1689,6 +1689,56 @@ git commit -m "feat: pipeline view and model progress dashboard views"
 
 ---
 
+### Task 5.4 🟢 Ryo: Order + model filter for Daily Summary and Pipeline views
+
+**Context:** When multiple models run on the same stations in a day, `getDailySummary` and `getPipelineData` aggregate all models together per station, making attainment figures meaningless. Orders can also have overlapping models, so supervisors need to scope the view to a specific order first, then optionally drill into a single model within it.
+
+**Data model note:** `period_log` stores `model_id`, not `order_id`. "Filter by order" means "restrict to model IDs that belong to this order's line items" — production that fulfils multiple overlapping orders for the same model cannot be separated at the log level.
+
+**URL params:** `?orderId=<uuid>&modelId=<uuid>` — same pattern as the existing `?date=` param. Both are optional. Selecting an order with no model selected shows all models in that order aggregated. Selecting a model with no order shows that model across all orders (equivalent to the old model-only filter).
+
+**Files:**
+- Modify: `lib/db/dashboard.ts` — add optional `modelId` and `modelIds` params to `getDailySummary` and `getPipelineData`
+- Modify: `app/dashboard/page.tsx` — add order + model selectors, resolve modelIds from orderId, pass to queries
+- Modify: `app/dashboard/pipeline/page.tsx` — same
+- Create: `components/ui/OrderPicker.tsx` — client component, dropdown of active orders
+- Create: `components/ui/ModelPicker.tsx` — client component, dropdown filtered to selected order's models (or all active models if no order selected)
+- Modify: `__tests__/dashboard-queries.test.ts` — add tests for filtered queries
+
+**Design:**
+
+- [ ] **Update `getDailySummary` and `getPipelineData`** to accept an optional `modelIds: string[] | undefined` param. When provided, replace `.eq('model_id', modelId)` with `.in('model_id', modelIds)` on the `period_log` query.
+
+- [ ] **Create `components/ui/OrderPicker.tsx`** — client component. Props: `orders: { id: string; order_number: string }[]`, `selectedId: string | undefined`. Renders a `<select>` with an "All orders" option. On change, pushes `?orderId=<id>` and clears `modelId` from the URL (model list changes when order changes).
+
+- [ ] **Create `components/ui/ModelPicker.tsx`** — client component. Props: `models: { id: string; name: string }[]`, `selectedId: string | undefined`. Renders a `<select>` with an "All models" option. The model list is pre-filtered server-side to the selected order's models (or all active models if no order). On change, pushes `?modelId=<id>` to the URL, preserving `orderId`.
+
+- [ ] **Update `app/dashboard/page.tsx`** — server-side:
+  1. Read `orderId` and `modelId` from `searchParams`
+  2. If `orderId` is set: query `order_lines` for that order to get its `model_id` list; pass as `modelIds` to `getDailySummary`; fetch only those models for `ModelPicker`
+  3. If `modelId` is also set: filter `modelIds` down to just that one
+  4. If neither is set: pass `modelIds = undefined` (all models, current behaviour)
+  5. Fetch all active orders for `OrderPicker`
+
+- [ ] **Update `app/dashboard/pipeline/page.tsx`** — same pattern.
+
+- [ ] **Add tests** for `getDailySummary` with a `modelIds` argument — confirm `.in('model_id', [...])` is called correctly.
+
+- [ ] **Manually verify**
+  1. With multiple orders and models in the DB, open Daily Summary — "All orders / All models" shows full aggregated figures
+  2. Select an order → only models in that order appear in the model dropdown; station rows filter to those models
+  3. Select a model within the order → single model view
+  4. Switch to Pipeline → order + model selection carries across tabs
+
+- [ ] **Commit**
+
+```bash
+git add lib/db/dashboard.ts app/dashboard/ components/ui/OrderPicker.tsx components/ui/ModelPicker.tsx __tests__/dashboard-queries.test.ts
+git commit -m "feat: order + model filter for daily summary and pipeline views (FR-2.6)"
+```
+
+---
+
 ## Milestone 6: Keep-alive + Root Routes + Deploy 🔵 Anyka
 
 ### Task 6.1: Keep-alive endpoint + root redirect

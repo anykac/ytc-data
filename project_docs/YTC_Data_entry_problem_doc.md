@@ -99,8 +99,9 @@ Approximate scale: ~8 stations, 4 supervisors, and a few rotating line leads per
 | **FR-2.3** | Model progress view with balance remaining and projected completion. Progress is computed at the model level: total demand = SUM(order_lines.quantity WHERE order active), total produced = SUM(period_log.actual WHERE model_id matches), balance = demand − produced. Results are sorted by due_date to surface urgency. Per-order-line attribution is deferred to P1. | P0 |
 | **FR-2.4** | Attainment trend chart over time (daily and weekly) | P1 |
 | **FR-2.5** | Defect trend and concentration by station and day | P1 |
-| **FR-2.6** | Filter all views by date range, station, model, and shift | P1 |
-| **FR-2.7** | Export any view to CSV / Excel | P2 |
+| **FR-2.6** | Filter dashboard views by order and model. When multiple models run simultaneously across the same stations, the Daily Summary and Pipeline views aggregate all models per station, making attainment figures misleading. An order selector scopes the view to the models belonging to that order; a model selector within it lets supervisors drill down to a single model's station-by-station performance. Because `period_log` records production against a `model_id` (not an `order_id`), "filter by order" means "show only stations running models in this order" — production that happens to fulfil multiple overlapping orders for the same model cannot be separated at the log level. The Model Progress view already operates at the model level and does not require this filter. | P0 |
+| **FR-2.7** | Filter all views by date range, station, and shift | P1 |
+| **FR-2.8** | Export any view to CSV / Excel | P2 |
 
 ## **5.3 Supervisor operational (Access: Supervisor+)**
 
