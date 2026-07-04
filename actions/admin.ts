@@ -10,10 +10,11 @@ import { unstable_rethrow } from 'next/navigation'
 // actions catch internally and return { error } instead of throwing.
 type ActionResult = { error?: string }
 
-async function toResult(fn: () => Promise<void>): Promise<ActionResult> {
+async function toResult(fn: () => Promise<void>): Promise<ActionResult>
+async function toResult<T extends object>(fn: () => Promise<T>): Promise<ActionResult & T>
+async function toResult(fn: () => Promise<object | void>): Promise<ActionResult> {
   try {
-    await fn()
-    return {}
+    return { ...(await fn()) }
   } catch (e) {
     unstable_rethrow(e)
     return { error: e instanceof Error ? e.message : 'Something went wrong' }
@@ -403,22 +404,19 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
 }
 
 export async function inviteUser(email: string): Promise<ActionResult & { userId?: string }> {
-  try {
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      throw new Error('Invalid email address')
-    await requireRole('admin')
-    const supabase = createAdminClient()
-    const { data, error } = await supabase.auth.admin.inviteUserByEmail(email)
-    if (error) throw error
+  return toResult(async () => {
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    throw new Error('Invalid email address')
+  await requireRole('admin')
+  const supabase = createAdminClient()
+  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email)
+  if (error) throw error
 
-    const { error: roleError } = await supabase
-      .from('user_roles')
-      .upsert({ user_id: data.user.id, role: 'supervisor' }, { onConflict: 'user_id' })
-    if (roleError) throw roleError
-    revalidatePath('/admin/accounts')
-    return { userId: data.user.id }
-  } catch (e) {
-    unstable_rethrow(e)
-    return { error: e instanceof Error ? e.message : 'Something went wrong' }
-  }
+  const { error: roleError } = await supabase
+    .from('user_roles')
+    .upsert({ user_id: data.user.id, role: 'supervisor' }, { onConflict: 'user_id' })
+  if (roleError) throw roleError
+  revalidatePath('/admin/accounts')
+  return { userId: data.user.id }
+  })
 }
