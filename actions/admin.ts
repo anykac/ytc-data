@@ -74,7 +74,10 @@ export async function deleteStation(id: string) {
   if (!station) throw new Error('Station not found')
 
   const { error } = await supabase.from('stations').delete().eq('id', id)
-  if (error) throw new Error('Cannot delete: station has historical production logs')
+  if (error) {
+    if (error.code === '23503') throw new Error('Cannot delete: station has historical production logs')
+    throw error
+  }
 
   // Close the gap — shift everything above down by 1, lowest first
   const { data: following, error: followError } = await supabase
