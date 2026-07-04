@@ -2141,46 +2141,44 @@ git commit -m "feat: keep-alive ping endpoint and root redirect"
 
 ### Task 6.2: Deploy to Vercel
 
-- [ ] **Push to GitHub** (if not already)
+- [x] **Push branch to GitHub** (via PR per repo workflow, not directly to `main`)
 
-```bash
-git push origin main
-```
-
-- [ ] **Create Vercel project**
+- [x] **Create Vercel project**
   1. Go to vercel.com → New Project → Import your GitHub repo
   2. Framework: Next.js (auto-detected)
   3. Add all environment variables from `.env.local`:
      - `NEXT_PUBLIC_SUPABASE_URL`
-     - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-     - `SUPABASE_SERVICE_ROLE_KEY`
-     - `NEXT_PUBLIC_SITE_URL` → set to your Vercel production URL (e.g. `https://ytc-data.vercel.app`)
+     - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+     - `SUPABASE_SECRET_KEY`
+     - `NEXT_PUBLIC_SITE_URL` → set to your Vercel production URL (`https://ytc-data.vercel.app`, no trailing slash)
   4. Deploy
 
-- [ ] **Add production URL to Supabase OAuth redirect list**
+- [x] **Add production URL to Supabase OAuth redirect list**
 
-In Supabase → Authentication → URL Configuration, add: `https://your-vercel-url.vercel.app/api/auth/callback`
+In Supabase → Authentication → URL Configuration:
+  - Site URL: `https://ytc-data.vercel.app`
+  - Redirect URLs (allowlist, keep both): `https://ytc-data.vercel.app/api/auth/callback` and `http://localhost:3000/api/auth/callback` (for local dev)
 
-- [ ] **Smoke-test production deployment**
+- [x] **Smoke-test production deployment**
 
-1. Visit `https://your-vercel-url.vercel.app/entry` — entry form loads
-2. Submit an entry → confirm it writes to Supabase
-3. Visit `/login` → sign in with Google → land on dashboard
-4. Visit `/api/ping` → returns `{"ok":true}`
+1. Visit `https://ytc-data.vercel.app/entry` — entry form loads ✓
+2. Submit an entry → confirm it writes to Supabase ✓
+3. Visit `/login` → sign in with Google → land on dashboard ✓
+4. Visit `/api/ping` → returns `{"ok":true}` ✓
 
-- [ ] **Commit** (Vercel config is automatic, just confirm deploy succeeds)
+- [x] **Commit** (Vercel config is automatic, just confirm deploy succeeds)
 
 ---
 
 ### Task 6.3: Configure keep-alive cron
 
-- [ ] **Set up cron-job.org**
+- [x] **Set up cron-job.org**
   1. Create a free account at cron-job.org
-  2. New cronjob → URL: `https://your-vercel-url.vercel.app/api/ping`
+  2. New cronjob → URL: `https://ytc-data.vercel.app/api/ping`
   3. Schedule: Daily (any time)
   4. Save and enable
 
-- [ ] **Verify** — trigger the cron manually from the dashboard, confirm it returns HTTP 200.
+- [x] **Verify** — trigger the cron manually from the dashboard, confirm it returns HTTP 200.
 
 ---
 
