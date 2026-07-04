@@ -3,8 +3,9 @@
 import { useTransition, useState } from 'react'
 import { submitEntry, type EntryResult } from '@/actions/entry'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import EditEntryDrawer from '@/components/entry/EditEntryDrawer'
 
-const PERIODS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'] as const
+export const PERIODS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'] as const
 
 const INPUT_CLS = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900'
 const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
@@ -60,6 +61,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
   const [result, setResult] = useState<EntryResult | null>(null)
   const [pendingPayload, setPendingPayload] = useState<ReturnType<typeof buildPayload> | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [showEditDrawer, setShowEditDrawer] = useState(false)
 
   const showConfirm = pendingPayload !== null
 
@@ -265,7 +267,23 @@ export default function EntryForm({ stations, models, leads }: Props) {
         >
           {isPending ? 'Submitting…' : 'Submit Entry'}
         </button>
+
+        <button
+          type="button"
+          onClick={() => setShowEditDrawer(true)}
+          className="w-full text-sm text-blue-600 hover:text-blue-800 text-center"
+        >
+          Edit previous entry
+        </button>
       </form>
+
+      {showEditDrawer && (
+        <EditEntryDrawer
+          stations={stations}
+          leads={leads}
+          onClose={() => setShowEditDrawer(false)}
+        />
+      )}
     </>
   )
 }

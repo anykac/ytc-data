@@ -1098,7 +1098,7 @@ git commit -m "feat: entry form UI with duplicate warning and auth error handlin
 - `searchEntries(stationId, period, date)` — returns entries to display
 - `editEntry(data: EditData): Promise<EditResult>` — called on save
 
-- [ ] **Create `components/entry/EditEntryDrawer.tsx`** — a client component that:
+- [x] **Create `components/entry/EditEntryDrawer.tsx`** — a client component that:
   1. Shows a search form: Station (dropdown), Period (dropdown), Date (date input defaulting to today)
   2. On search → calls `searchEntries` (as a server action or via fetch), displays matching rows in a table showing: Station, Period, Model, Target, Actual, PAX, Defects, Submitted by, Time
   3. User clicks a row → opens edit form pre-filled with those values + Lead name dropdown + Password field
@@ -1106,7 +1106,7 @@ git commit -m "feat: entry form UI with duplicate warning and auth error handlin
   5. On `status: 'auth_failed'` → "Incorrect password — edit not saved."
   6. On `status: 'success'` → "Saved." and close the edit form
 
-- [ ] **Add an "Edit previous entry" link/button to `EntryForm.tsx`** that opens the `EditEntryDrawer`.
+- [x] **Add an "Edit previous entry" link/button to `EntryForm.tsx`** that opens the `EditEntryDrawer`.
 
 - [ ] **Manually test**
 
