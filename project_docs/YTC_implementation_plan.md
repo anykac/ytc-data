@@ -1359,7 +1359,7 @@ git commit -m "feat: admin CRUD pages for stations, models, orders, leads, accou
 
 ---
 
-## Milestone 5: Dashboard 🟢 Ryo (queries + UI)
+## Milestone 5: Dashboard 🟢 Ryo (queries + UI) + 🔵 Anyka (T5.5 Full Data Report)
 
 *These tasks can run in parallel after M1 is complete.*
 
@@ -1735,6 +1735,155 @@ git commit -m "feat: pipeline view and model progress dashboard views"
 ```bash
 git add lib/db/dashboard.ts app/dashboard/ components/ui/OrderPicker.tsx components/ui/ModelPicker.tsx __tests__/dashboard-queries.test.ts
 git commit -m "feat: order + model filter for daily summary and pipeline views (FR-2.6)"
+```
+
+---
+
+### Task 5.5 🔵 Anyka: Full Data Report tab
+
+**Context:** Raw `period_log` entries with readable names for a selected date range, plus CSV export — pulled forward from P2 (originally FR-2.8) as new requirement FR-2.9 because raw-entry visibility/export is needed sooner than the rest of P2. Distinct from FR-2.8, which is exporting the aggregated Daily Summary / Pipeline / Model Progress views themselves.
+
+**Files:**
+- Modify: `lib/db/dashboard.ts` — add `getFullDataReport`
+- Create: `app/dashboard/report/page.tsx`
+- Create: `components/dashboard/FullDataReport.tsx`
+- Modify: `__tests__/dashboard-queries.test.ts` — add tests for `getFullDataReport`
+
+**Interfaces:**
+
+```typescript
+type FullDataReportRow = {
+  date: string
+  period: string
+  stationName: string
+  modelName: string
+  target: number
+  actual: number
+  pax: number
+  defects: number
+  submittedByName: string
+  createdAt: string
+  edited: boolean
+}
+```
+
+- [ ] **Write failing tests** for `getFullDataReport(startDate, endDate)`:
+  - Rows are joined with station/model/lead names, not raw IDs
+  - Sorted by date ascending, then period, then station sequence within each date
+  - `edited` is `true` only for rows with a matching `period_log_edits.period_log_id`
+  - Empty range (no matching rows) returns `[]`
+
+- [ ] **Run tests to confirm they fail**
+
+```bash
+npm test -- dashboard-queries
+```
+
+- [ ] **Add `getFullDataReport` to `lib/db/dashboard.ts`**
+
+```typescript
+export type FullDataReportRow = {
+  date: string
+  period: string
+  stationName: string
+  modelName: string
+  target: number
+  actual: number
+  pax: number
+  defects: number
+  submittedByName: string
+  createdAt: string
+  edited: boolean
+}
+
+export async function getFullDataReport(startDate: string, endDate: string): Promise<FullDataReportRow[]> {
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('period_log')
+    .select(`
+      id, date, period, target, actual, pax, defects, created_at,
+      stations!inner(name, sequence),
+      models!inner(name),
+      leads!inner(name)
+    `)
+    .gte('date', startDate)
+    .lte('date', endDate)
+
+  if (error) throw error
+  if (!data || data.length === 0) return []
+
+  const { data: edits, error: editsError } = await supabase
+    .from('period_log_edits')
+    .select('period_log_id')
+    .in('period_log_id', data.map(row => row.id))
+
+  if (editsError) throw editsError
+  const editedIds = new Set((edits ?? []).map(e => e.period_log_id))
+
+  return data
+    .map(row => {
+      const station = row.stations as unknown as { name: string; sequence: number }
+      const model = row.models as unknown as { name: string }
+      const lead = row.leads as unknown as { name: string }
+      return {
+        date: row.date,
+        period: row.period,
+        stationName: station.name,
+        stationSequence: station.sequence,
+        modelName: model.name,
+        target: row.target,
+        actual: row.actual,
+        pax: row.pax,
+        defects: row.defects,
+        submittedByName: lead.name,
+        createdAt: row.created_at,
+        edited: editedIds.has(row.id),
+      }
+    })
+    .sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date)
+      if (a.period !== b.period) return a.period.localeCompare(b.period)
+      return a.stationSequence - b.stationSequence
+    })
+}
+```
+
+> **Input validation reminder (per `CLAUDE.md` implementation standards):** `startDate`/`endDate` reach this function from a client-controlled date-range picker. The page/component calling `getFullDataReport` must validate both are well-formed `YYYY-MM-DD` strings and `startDate <= endDate` *before* calling it — reject with an inline error otherwise, same pattern as the duplicate-entry check in `actions/entry.ts`.
+
+- [ ] **Run tests — confirm they pass**
+
+```bash
+npm test -- dashboard-queries
+```
+
+- [ ] **Create `components/dashboard/FullDataReport.tsx`** — client component:
+  - Date range inputs (start/end), defaulting to the first/last day of the current calendar month on mount
+  - Validates `start <= end` before calling the server action; shows inline error otherwise (query not run)
+  - Calls `getFullDataReport` on mount and whenever the range changes
+  - Renders rows grouped visually by `date` (a section header per date); within each date, rows are already sorted period → station from the query
+  - Shows an "edited" badge on rows where `edited === true`
+  - Empty state: "No entries found for this date range."
+  - Error state: "Failed to load report — please try again."
+  - "Export CSV" button — converts the rows currently held in component state (already fetched, not re-queried) to a CSV string with headers `Date, Period, Station, Model, Target, Actual, PAX, Defects, Submitted By, Submitted At, Edited`, and triggers a download via `Blob` + a temporary `<a download>` element
+
+- [ ] **Create `app/dashboard/report/page.tsx`** — server component shell rendering `<FullDataReport />`. No auth logic needed here — `middleware.ts`'s existing `/dashboard/:path*` matcher already gates this route to Supervisor/Admin.
+
+- [ ] **Add a "Full Data Report" tab link** alongside the existing Daily Summary / Pipeline / Model Progress tab links in the dashboard nav.
+
+- [ ] **Manually verify**
+
+1. Log entries across several dates, stations, and periods; edit at least one entry
+2. Open Full Data Report — confirm it loads the current month by default, grouped by date, sorted period → station within each date
+3. Confirm the previously-edited entry shows its "edited" badge
+4. Change the date range and confirm data reloads; try `start > end` and confirm inline validation blocks the query
+5. Click Export CSV — confirm the downloaded file opens correctly with resolved names (not UUIDs) and matches the on-screen rows exactly
+
+- [ ] **Commit**
+
+```bash
+git add lib/db/dashboard.ts app/dashboard/report/ components/dashboard/FullDataReport.tsx __tests__/dashboard-queries.test.ts
+git commit -m "feat: full data report tab with date-range CSV export (FR-2.9)"
 ```
 
 ---

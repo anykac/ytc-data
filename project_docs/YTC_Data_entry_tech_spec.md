@@ -180,7 +180,7 @@ No login required. Form is accessible directly at `/entry`.
 
 ### 6.2 Dashboard (Supervisor+ — session required)
 
-Three tab-switched views:
+Four tab-switched views:
 
 **Daily Summary**
 - Date picker (defaults to today)
@@ -194,6 +194,13 @@ Three tab-switched views:
 **Model Progress**
 - Active order lines grouped by model, sorted by `due_date`
 - Columns: Model | Total ordered | Total produced | Balance remaining | Due date
+
+**Full Data Report** (FR-2.9)
+- Date range picker (start/end), defaults to the current calendar month
+- Raw `period_log` rows for the range, grouped visually by date; within each date sorted by period then station sequence
+- Columns: Date | Period | Station | Model | Target | Actual | PAX | Defects | Submitted By | Submitted At | Edited (flag, no full diff)
+- "Export CSV" button converts the rows already loaded on screen to a CSV string client-side and triggers a browser download — no separate export endpoint, no re-query
+- Reuses the existing `period_log` / `period_log_edits` SELECT policies (Supervisor/Admin) — no new RLS policy required
 
 ### 6.3 Admin (Supervisor+)
 
@@ -246,6 +253,9 @@ Line lead writes bypass RLS using the Supabase **service role key** (server-side
 | Supabase write failure | Generic error: "Submission failed — please try again." Entry not recorded. |
 | Session expired (Supervisor/Admin) | Redirect to login page. |
 | Unauthorised route access | Redirect to login or 403 page based on role check. |
+| Full Data Report: invalid range (start > end, or malformed date) | Inline validation error; query not run. |
+| Full Data Report: no rows in range | Empty state: "No entries found for this date range." |
+| Full Data Report: query failure | Generic "Failed to load report — please try again." |
 
 ---
 
@@ -272,6 +282,7 @@ Line lead writes bypass RLS using the Supabase **service role key** (server-side
 - Model progress view — model-level, sorted by due date (FR-2.3)
 - Pipeline view with gap-to-goal (implied by station sequencing design)
 - **Order + model filter on Daily Summary and Pipeline views** (FR-2.6) — required because multi-model days produce meaningless aggregated attainment figures without it. Order selector scopes to the models in that order; model selector drills down within it. Note: because `period_log` stores `model_id` not `order_id`, "filter by order" means "show only models belonging to this order" — production shared across overlapping orders for the same model cannot be split at the log level.
+- **Full Data Report tab** (FR-2.9) — raw `period_log` entries for a supervisor-selected date range, grouped by date, with edited-entry flagging and CSV export of the loaded range. Pulled forward from the original P2 CSV-export item because raw-entry visibility/export is needed before the rest of P2. Distinct from FR-2.8 below, which covers exporting the aggregated Daily Summary / Pipeline / Model Progress views themselves.
 - Stations / models / orders / leads CRUD (FR-3.1, FR-3.3)
 - RBAC setup — Line Lead, Supervisor, Admin (FR-4.1)
 - Google OAuth for Supervisor/Admin (FR-4.2)
@@ -287,7 +298,7 @@ Line lead writes bypass RLS using the Supabase **service role key** (server-side
 - Per-order-line production attribution
 
 ### Deferred to P2
-- CSV / Excel export (FR-2.8)
+- CSV / Excel export of the Daily Summary / Pipeline / Model Progress views themselves (FR-2.8) — the Full Data Report tab's raw-entry CSV export (FR-2.9) is in P0; this item is about exporting the aggregated views
 - Automated daily plan setup (FR-3.2)
 - YubiKey / FIDO2 auth upgrade
 
