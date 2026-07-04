@@ -381,6 +381,27 @@ export async function removeUserRole(userId: string): Promise<ActionResult> {
   })
 }
 
+export async function deleteUser(userId: string): Promise<ActionResult> {
+  return toResult(async () => {
+  assertUuid(userId, 'userId')
+  const { user } = await requireRole('admin')
+  if (userId === user.id) throw new Error('Cannot delete your own account')
+  const supabase = createAdminClient()
+
+  const { data, error: roleFetchError } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (roleFetchError) throw roleFetchError
+  if (data?.role === 'admin') throw new Error('Cannot delete an admin account')
+
+  const { error } = await supabase.auth.admin.deleteUser(userId)
+  if (error) throw error
+  revalidatePath('/admin/accounts')
+  })
+}
+
 export async function inviteUser(email: string): Promise<ActionResult> {
   return toResult(async () => {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
