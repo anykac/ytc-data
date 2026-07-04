@@ -192,8 +192,23 @@ Four tab-switched views:
 - Highlights stations that are starving or overfeeding the next step
 
 **Model Progress**
-- Active order lines grouped by model, sorted by `due_date`
-- Columns: Model | Total ordered | Total produced | Balance remaining | Due date
+- One row per active order-model combination (if a model appears in two orders, two rows), sorted by `due_date`
+- Each model name is a link to the Order-Model Step Tracker for that order + model
+- Columns: Order # | Model | Ordered | Produced | Balance remaining | Due date
+
+**Order-Model Step Tracker** (reached by clicking a model row in Model Progress)
+- Shows step-by-step production progress for a specific model within a specific order
+- URL: `/dashboard/progress/[orderId]/[modelId]`
+- **Steps table (left panel)** — one row per station the model flows through, ordered by sequence:
+  - *Step* — station name
+  - *Cumulative Output* — total actual units produced at this step for this model (all time)
+  - *Active Inputs* — units that completed the previous step but have not yet been processed by this step (WIP = prev-step cumulative output − this-step cumulative output); `—` for the first step
+  - *Order Attainment %* — Cumulative Output ÷ Order Quantity × 100
+- **Chart (right panel)** — displayed when a step row is selected, rendered with Recharts `ComposedChart`:
+  - Line series: cumulative output over time (date axis)
+  - Bar series: actual output per period at this step
+  - Bar series: active inputs (WIP into this step) per date
+- Charting library: `recharts` — install with `npm install recharts`
 
 **Full Data Report** (FR-2.9)
 - Date range picker (start/end), defaults to the current calendar month
@@ -283,6 +298,7 @@ Line lead writes bypass RLS using the Supabase **service role key** (server-side
 - Pipeline view with gap-to-goal (implied by station sequencing design)
 - **Order + model filter on Daily Summary and Pipeline views** (FR-2.6) — required because multi-model days produce meaningless aggregated attainment figures without it. Order selector scopes to the models in that order; model selector drills down within it. Note: because `period_log` stores `model_id` not `order_id`, "filter by order" means "show only models belonging to this order" — production shared across overlapping orders for the same model cannot be split at the log level.
 - **Full Data Report tab** (FR-2.9) — raw `period_log` entries for a supervisor-selected date range, grouped by date, with edited-entry flagging and CSV export of the loaded range. Pulled forward from the original P2 CSV-export item because raw-entry visibility/export is needed before the rest of P2. Distinct from FR-2.8 below, which covers exporting the aggregated Daily Summary / Pipeline / Model Progress views themselves.
+- **Order-Model Step Tracker** — per-step progress table and chart for a specific order+model combination, accessible by clicking a model row in the Model Progress view. Shows cumulative output, active inputs (WIP), and order attainment % per station; chart displays cumulative output (line), per-period output (bar), and active inputs (bar) for the selected step.
 - Stations / models / orders / leads CRUD (FR-3.1, FR-3.3)
 - RBAC setup — Line Lead, Supervisor, Admin (FR-4.1)
 - Google OAuth for Supervisor/Admin (FR-4.2)
@@ -313,8 +329,9 @@ End-to-end test plan for P0:
 3. **Duplicate warning** — submit same (date, period, station, model) twice; confirm warning appears on second submission.
 4. **Edit + audit log** — edit an existing entry; confirm `period_log_edits` row is created with correct `edited_by`, old/new values.
 5. **Daily summary** — log entries for multiple stations; confirm attainment %, variance, and defects display correctly.
-6. **Model progress** — create an order with two line items; log production for both models; confirm balance remaining updates correctly.
+6. **Model progress** — create an order with two line items; log production for both models; confirm balance remaining updates correctly; confirm each row shows the correct order number.
 7. **Pipeline view** — log production for sequential stations; confirm WIP and gap-to-goal reflect actual vs upstream output.
+7a. **Order-Model Step Tracker** — click a model row in Model Progress; confirm step table shows correct cumulative output, active inputs, and order attainment % per station; select a step and confirm chart renders with correct line and bar series.
 8. **Admin CRUD** — create a station, model, order, and lead; confirm they appear in dropdowns; deactivate one; confirm it disappears from dropdowns but historical logs remain intact.
 9. **Role gating** — confirm a line lead cannot access `/dashboard` or `/admin`; confirm a Supervisor can access both but not `/admin/accounts`.
 10. **Keep-alive** — confirm the `/api/ping` endpoint returns 200 and that cron-job.org is configured to hit it daily.

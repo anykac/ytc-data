@@ -1888,6 +1888,184 @@ git commit -m "feat: full data report tab with date-range CSV export (FR-2.9)"
 
 ---
 
+### Task 5.6 🟢 Ryo: Order-Model Step Tracker
+
+Clicking a model row in the Model Progress view opens a detail page showing step-by-step production progress for that specific order + model combination. The page has a steps table on the left and a chart on the right.
+
+**Prerequisites:** Install charting library:
+```bash
+npm install recharts
+```
+
+**Files:**
+- Create: `lib/db/order-model-tracker.ts` — query functions
+- Create: `app/dashboard/progress/[orderId]/[modelId]/page.tsx` — detail page
+- Create: `components/dashboard/StepTrackerTable.tsx` — step rows table
+- Create: `components/dashboard/StepOutputChart.tsx` — Recharts composed chart
+- Modify: `lib/db/dashboard.ts` — change `getModelProgress` to return per-order rows (one row per order-model, not aggregated across orders)
+- Modify: `components/dashboard/ModelProgressTable.tsx` — make model name a link; add Order # column
+
+---
+
+#### Part A — Update `getModelProgress` to return per-order rows
+
+The current `getModelProgress` aggregates quantities across all orders for each model. Change it to return one row per active `order_line`, so each row carries its `orderId` and `orderNumber` and can be linked individually.
+
+```typescript
+export type ModelProgressRow = {
+  orderId: string
+  orderNumber: string
+  modelId: string
+  modelName: string
+  totalOrdered: number       // quantity from this order line
+  totalProduced: number      // all-time actual output for this model (shared across orders)
+  balanceRemaining: number   // totalOrdered - totalProduced
+  dueDate: string
+}
+```
+
+> **Note on `totalProduced`:** Production logs are tagged with `model_id` only, not `order_id`. A model's produced count is shared across all orders containing it — the same caveat that applies to the dashboard filter (see T5.4). `balanceRemaining` may go negative if production exceeds this specific order's quantity, which is expected when the same model runs across multiple orders.
+
+Update `ModelProgressTable` to add an **Order #** column and wrap each model name in a `<Link href={/dashboard/progress/${row.orderId}/${row.modelId}}>`.
+
+---
+
+#### Part B — Query function `getOrderModelSteps`
+
+**File:** `lib/db/order-model-tracker.ts`
+
+```typescript
+export type StepTrackerRow = {
+  stationId: string
+  stationName: string
+  sequence: number
+  cumulativeOutput: number   // sum of period_log.actual for (model_id, station_id)
+  activeInputs: number       // prevStep.cumulativeOutput - this.cumulativeOutput (0 for seq=1)
+  orderQty: number           // from order_lines for this order+model
+  attainmentPct: number | null  // cumulativeOutput / orderQty * 100
+}
+
+export type StepPeriodPoint = {
+  label: string              // e.g. "2026-07-01 P3"
+  date: string
+  period: string
+  periodOutput: number       // actual for this step on this date+period
+  cumulativeOutput: number   // running total up to and including this point
+  activeInputs: number       // prevStep cumulative at this point - thisStep cumulative at this point
+}
+
+export async function getOrderModelSteps(
+  orderId: string,
+  modelId: string
+): Promise<{ rows: StepTrackerRow[]; orderNumber: string; modelName: string }> { ... }
+
+export async function getStepPeriodData(
+  modelId: string,
+  stationId: string,
+  prevStationId: string | null  // null for the first step
+): Promise<StepPeriodPoint[]> { ... }
+```
+
+**`getOrderModelSteps` implementation outline:**
+1. Fetch `order_lines` where `order_id = orderId AND model_id = modelId AND active = true` → get `orderQty`, `orderNumber`, `modelName`
+2. Fetch active `model_station_config` for `model_id = modelId`, joined to `stations`, ordered by `sequence`
+3. For each station, sum `period_log.actual` where `model_id = modelId AND station_id = station.id`
+4. Compute `activeInputs` = previous station's `cumulativeOutput` − this station's `cumulativeOutput` (0 for sequence 1)
+5. Compute `attainmentPct` = `cumulativeOutput / orderQty * 100` (null if `orderQty === 0`)
+
+**`getStepPeriodData` implementation outline:**
+1. Fetch all `period_log` rows for `(model_id, station_id)` ordered by `(date, period)`
+2. Build running `cumulativeOutput` as a prefix sum
+3. If `prevStationId` is provided: also fetch all logs for `(model_id, prevStationId)`, build a prefix sum keyed by `(date, period)`, and compute `activeInputs` = prevStep cumulative at that point − thisStep cumulative at that point
+4. Return the merged array
+
+---
+
+#### Part C — Page + components
+
+**`app/dashboard/progress/[orderId]/[modelId]/page.tsx`**
+
+Server component. Reads `orderId` and `modelId` from params.
+- Validate both are valid UUIDs; redirect to `/dashboard/progress` if not
+- Call `requireRole('supervisor')`
+- Call `getOrderModelSteps(orderId, modelId)` → pass rows + metadata to `StepTrackerTable`
+
+```typescript
+export default async function OrderModelTrackerPage({
+  params,
+}: {
+  params: Promise<{ orderId: string; modelId: string }>
+}) {
+  await requireRole('supervisor')
+  const { orderId, modelId } = await params
+  // UUID validation — redirect if invalid
+  const { rows, orderNumber, modelName } = await getOrderModelSteps(orderId, modelId)
+
+  return (
+    <div className="p-6 space-y-4">
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900">{modelName}</h1>
+        <p className="text-sm text-gray-500">Order {orderNumber}</p>
+      </div>
+      <StepTrackerTable
+        rows={rows}
+        modelId={modelId}
+        prevStationIds={/* map of stationId → prevStationId */}
+      />
+    </div>
+  )
+}
+```
+
+**`components/dashboard/StepTrackerTable.tsx`** — client component
+
+- Renders a table: Step | Cumulative Output | Active Inputs | Attainment %
+- Selected row state (`selectedStationId`) — clicking a row sets it
+- When a row is selected, renders `<StepOutputChart>` in the right panel
+- `StepOutputChart` fetches its own data client-side via a server action `getStepPeriodData` (or pass through a fetch to a server action)
+- Layout: `flex gap-6` — table takes ~40%, chart takes ~60%
+
+```typescript
+type Props = {
+  rows: StepTrackerRow[]
+  modelId: string
+  prevStationIds: Record<string, string | null>  // stationId → prevStationId
+}
+```
+
+**`components/dashboard/StepOutputChart.tsx`** — client component
+
+Uses Recharts `ComposedChart`:
+- `Bar` series for `periodOutput` (left axis)
+- `Bar` series for `activeInputs` (left axis, different colour)
+- `Line` series for `cumulativeOutput` (right axis, `yAxisId="right"`)
+- `XAxis` keyed on `label` (date + period string)
+- `Legend`, `Tooltip`, `ResponsiveContainer`
+
+Fetches its data by calling `getStepPeriodData` as a server action when `stationId` prop changes.
+
+---
+
+#### Verification
+
+- [ ] Navigate to Model Progress → confirm each row shows Order # and model name is a link
+- [ ] Click a model row → confirm Step Tracker page loads with correct step table
+- [ ] Confirm Cumulative Output is the sum of all `period_log.actual` for that model + station
+- [ ] Confirm Active Inputs = previous step cumulative − this step cumulative
+- [ ] Confirm Order Attainment % = cumulative / order quantity
+- [ ] Select a step → confirm chart renders with three series (line + two bars)
+- [ ] Confirm cumulative line matches running total of bar values
+
+- [ ] **Commit**
+
+```bash
+npm install recharts
+git add lib/db/order-model-tracker.ts app/dashboard/progress/ components/dashboard/StepTrackerTable.tsx components/dashboard/StepOutputChart.tsx
+git commit -m "feat: order-model step tracker with per-step chart (T5.6)"
+```
+
+---
+
 ## Milestone 6: Keep-alive + Root Routes + Deploy 🔵 Anyka
 
 ### Task 6.1: Keep-alive endpoint + root redirect
