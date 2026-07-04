@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import StationsAdmin from './StationsAdmin'
 
 export default async function StationsPage() {
-  await requireRole('supervisor')
+  await requireRole('admin')
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('stations')

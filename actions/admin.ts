@@ -17,7 +17,7 @@ function assertDate(val: string, field: string) {
     throw new Error(`Invalid ${field}`)
 }
 
-// ── Stations ──────────────────────────────────────────────────────────────────
+// ── Stations (admin only) ─────────────────────────────────────────────────────
 
 export async function upsertStation(data: {
   id?: string
@@ -26,7 +26,7 @@ export async function upsertStation(data: {
   active: boolean
 }) {
   if (data.id) assertUuid(data.id, 'station id')
-  await requireRole('supervisor')
+  await requireRole('admin')
   const supabase = createAdminClient()
 
   if (data.id) {
@@ -61,10 +61,49 @@ export async function upsertStation(data: {
 
 export async function deleteStation(id: string) {
   assertUuid(id, 'station id')
-  await requireRole('supervisor')
+  await requireRole('admin')
   const supabase = createAdminClient()
+
+  // Read sequence before deleting so we can re-gap remaining stations
+  const { data: station, error: fetchError } = await supabase
+    .from('stations')
+    .select('sequence')
+    .eq('id', id)
+    .maybeSingle()
+  if (fetchError) throw fetchError
+  if (!station) throw new Error('Station not found')
+
   const { error } = await supabase.from('stations').delete().eq('id', id)
   if (error) throw new Error('Cannot delete: station has historical production logs')
+
+  // Close the gap — shift everything above down by 1, lowest first
+  const { data: following, error: followError } = await supabase
+    .from('stations')
+    .select('id, sequence')
+    .gt('sequence', station.sequence)
+    .order('sequence', { ascending: true })
+  if (followError) throw followError
+
+  for (const s of following ?? []) {
+    const { error: shiftError } = await supabase
+      .from('stations').update({ sequence: s.sequence - 1 }).eq('id', s.id)
+    if (shiftError) throw shiftError
+  }
+
+  revalidatePath('/admin/stations')
+}
+
+export async function reorderStations(updates: { id: string; sequence: number }[]) {
+  updates.forEach((u, i) => assertUuid(u.id, `updates[${i}].id`))
+  await requireRole('admin')
+  const supabase = createAdminClient()
+
+  for (const u of updates) {
+    const { error } = await supabase
+      .from('stations').update({ sequence: u.sequence }).eq('id', u.id)
+    if (error) throw error
+  }
+
   revalidatePath('/admin/stations')
 }
 
@@ -266,4 +305,13 @@ export async function removeUserRole(userId: string) {
   const { error } = await supabase.from('user_roles').delete().eq('user_id', userId)
   if (error) throw error
   revalidatePath('/admin/accounts')
+}
+
+export async function inviteUser(email: string) {
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    throw new Error('Invalid email address')
+  await requireRole('admin')
+  const supabase = createAdminClient()
+  const { error } = await supabase.auth.admin.inviteUserByEmail(email)
+  if (error) throw error
 }

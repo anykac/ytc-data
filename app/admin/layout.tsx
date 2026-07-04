@@ -2,19 +2,21 @@ import { requireRole } from '@/lib/auth/session'
 import Link from 'next/link'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requireRole('supervisor')
+  const { role } = await requireRole('supervisor')
+
+  const navItems = [
+    { href: '/admin/orders',   label: 'Orders',   adminOnly: false },
+    { href: '/admin/models',   label: 'Models',   adminOnly: false },
+    { href: '/admin/stations', label: 'Stations', adminOnly: true  },
+    { href: '/admin/accounts', label: 'Accounts', adminOnly: true  },
+    { href: '/admin/leads',    label: 'Leads',    adminOnly: false },
+  ].filter((item) => !item.adminOnly || role === 'admin')
 
   return (
     <div className="flex flex-1">
       <nav className="w-48 shrink-0 border-r border-gray-200 bg-white px-3 py-6 space-y-1">
         <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Admin</p>
-        {[
-          { href: '/admin/orders',   label: 'Orders' },
-          { href: '/admin/models',   label: 'Models' },
-          { href: '/admin/stations', label: 'Stations' },
-          { href: '/admin/accounts', label: 'Accounts' },
-          { href: '/admin/leads',    label: 'Leads' },
-        ].map(({ href, label }) => (
+        {navItems.map(({ href, label }) => (
           <Link
             key={href}
             href={href}
