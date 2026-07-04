@@ -18,12 +18,8 @@ export default async function OrderModelTrackerPage({
     redirect('/dashboard/progress')
   }
 
-  let result: Awaited<ReturnType<typeof getOrderModelSteps>>
-  try {
-    result = await getOrderModelSteps(orderId, modelId)
-  } catch {
-    redirect('/dashboard/progress')
-  }
+  const result = await getOrderModelSteps(orderId, modelId)
+  if (!result) redirect('/dashboard/progress')
 
   const { rows, orderNumber, modelName } = result
 

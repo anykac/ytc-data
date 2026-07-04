@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { PERIOD_ORDER, type Period } from '@/lib/constants'
 
 export type StepTrackerRow = {
   stationId: string
@@ -19,12 +20,11 @@ export type StepPeriodPoint = {
   activeInputs: number
 }
 
-const PERIOD_ORDER = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'OT']
 
 export async function getOrderModelSteps(
   orderId: string,
   modelId: string,
-): Promise<{ rows: StepTrackerRow[]; orderNumber: string; modelName: string }> {
+): Promise<{ rows: StepTrackerRow[]; orderNumber: string; modelName: string } | null> {
   const supabase = createAdminClient()
 
   const { data: line, error: lineError } = await supabase
@@ -35,7 +35,7 @@ export async function getOrderModelSteps(
     .eq('active', true)
     .maybeSingle()
   if (lineError) throw lineError
-  if (!line) throw new Error('Order line not found')
+  if (!line) return null
 
   const orderNumber = (line.orders as { order_number: string }).order_number
   const modelName = (line.models as { name: string }).name
@@ -100,7 +100,7 @@ export async function getStepPeriodData(
 
   const sorted = (logs ?? []).sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date)
-    return PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)
+    return PERIOD_ORDER.indexOf(a.period as Period) - PERIOD_ORDER.indexOf(b.period as Period)
   })
 
   let running = 0
@@ -122,7 +122,7 @@ export async function getStepPeriodData(
 
   const sortedPrev = (prevLogs ?? []).sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date)
-    return PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)
+    return PERIOD_ORDER.indexOf(a.period as Period) - PERIOD_ORDER.indexOf(b.period as Period)
   })
 
   let prevRunning = 0
@@ -132,8 +132,12 @@ export async function getStepPeriodData(
     prevCumByKey.set(`${log.date}|${log.period}`, prevRunning)
   }
 
-  // Build sorted list of prev station keys so we can find the latest one <= current point
-  const prevKeysSorted = Array.from(prevCumByKey.keys()).sort()
+  const prevKeysSorted = Array.from(prevCumByKey.keys()).sort((a, b) => {
+    const [aDate, aPeriod] = a.split('|')
+    const [bDate, bPeriod] = b.split('|')
+    if (aDate !== bDate) return aDate.localeCompare(bDate)
+    return PERIOD_ORDER.indexOf(aPeriod as Period) - PERIOD_ORDER.indexOf(bPeriod as Period)
+  })
 
   return points.map((p) => {
     const key = `${p.date}|${p.period}`

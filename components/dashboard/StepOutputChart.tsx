@@ -27,12 +27,14 @@ export default function StepOutputChart({ modelId, stationId, prevStationId, sta
   const [error, setError] = useState('')
 
   useEffect(() => {
+    let cancelled = false
     setLoading(true)
     setError('')
     fetchStepPeriodData(modelId, stationId, prevStationId)
-      .then(setData)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load chart data'))
-      .finally(() => setLoading(false))
+      .then((d) => { if (!cancelled) setData(d) })
+      .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load chart data') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [modelId, stationId, prevStationId])
 
   if (loading) {
