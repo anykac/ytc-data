@@ -63,12 +63,14 @@ export async function getPipelineData(date: string, modelIds?: string[]): Promis
 }
 
 export type ModelProgressRow = {
+  orderId: string
+  orderNumber: string
   modelId: string
   modelName: string
   totalOrdered: number
   totalProduced: number
   balanceRemaining: number
-  earliestDueDate: string
+  dueDate: string
 }
 
 export async function getModelProgress(): Promise<ModelProgressRow[]> {
@@ -76,30 +78,15 @@ export async function getModelProgress(): Promise<ModelProgressRow[]> {
 
   const { data: lines, error: linesError } = await supabase
     .from('order_lines')
-    .select('quantity, model_id, models!inner(name), orders!inner(due_date, active)')
+    .select('quantity, model_id, models!inner(name), orders!inner(id, order_number, due_date, active)')
     .eq('active', true)
     .filter('orders.active', 'eq', true)
 
   if (linesError) throw linesError
-  if (!lines) return []
+  if (!lines || lines.length === 0) return []
 
-  const modelMap = new Map<string, { name: string; totalOrdered: number; earliestDueDate: string }>()
-  for (const line of lines) {
-    const id = line.model_id
-    const order = line.orders as { due_date: string }
-    const ex = modelMap.get(id)
-    if (!ex) {
-      modelMap.set(id, { name: (line.models as { name: string }).name, totalOrdered: line.quantity, earliestDueDate: order.due_date })
-    } else {
-      modelMap.set(id, {
-        ...ex,
-        totalOrdered: ex.totalOrdered + line.quantity,
-        earliestDueDate: order.due_date < ex.earliestDueDate ? order.due_date : ex.earliestDueDate,
-      })
-    }
-  }
+  const modelIds = [...new Set(lines.map((l) => l.model_id))]
 
-  const modelIds = Array.from(modelMap.keys())
   const { data: produced, error: producedError } = await supabase
     .from('period_log')
     .select('model_id, actual, stations!inner(sequence)')
@@ -111,30 +98,37 @@ export async function getModelProgress(): Promise<ModelProgressRow[]> {
   // A unit is "produced" when it exits the last station in the flow — summing
   // all stations would count the same unit multiple times.
   const modelMaxSeq = new Map<string, number>()
-  for (const row of produced) {
+  for (const row of produced ?? []) {
     const seq = (row.stations as { sequence: number }).sequence
     const cur = modelMaxSeq.get(row.model_id) ?? 0
     if (seq > cur) modelMaxSeq.set(row.model_id, seq)
   }
 
   const producedMap = new Map<string, number>()
-  for (const row of produced) {
+  for (const row of produced ?? []) {
     const seq = (row.stations as { sequence: number }).sequence
     if (seq === modelMaxSeq.get(row.model_id)) {
       producedMap.set(row.model_id, (producedMap.get(row.model_id) ?? 0) + row.actual)
     }
   }
 
-  return Array.from(modelMap.entries())
-    .map(([modelId, m]) => ({
-      modelId,
-      modelName: m.name,
-      totalOrdered: m.totalOrdered,
-      totalProduced: producedMap.get(modelId) ?? 0,
-      balanceRemaining: m.totalOrdered - (producedMap.get(modelId) ?? 0),
-      earliestDueDate: m.earliestDueDate,
-    }))
-    .sort((a, b) => a.earliestDueDate.localeCompare(b.earliestDueDate))
+  return lines
+    .map((line) => {
+      const order = line.orders as { id: string; order_number: string; due_date: string }
+      const model = line.models as { name: string }
+      const totalProduced = producedMap.get(line.model_id) ?? 0
+      return {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        modelId: line.model_id,
+        modelName: model.name,
+        totalOrdered: line.quantity,
+        totalProduced,
+        balanceRemaining: line.quantity - totalProduced,
+        dueDate: order.due_date,
+      }
+    })
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
 }
 
 export type FullDataReportRow = {

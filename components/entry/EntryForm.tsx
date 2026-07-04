@@ -4,8 +4,7 @@ import { useTransition, useState } from 'react'
 import { submitEntry, type EntryResult } from '@/actions/entry'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import EditEntryDrawer from '@/components/entry/EditEntryDrawer'
-
-export const PERIODS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'] as const
+import { PERIOD_ORDER } from '@/lib/constants'
 
 const INPUT_CLS = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900'
 const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
@@ -150,7 +149,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               onChange={e => set('period', e.target.value)}
               className={`${BASE_SELECT} text-gray-900`}
             >
-              {PERIODS.map(p => (
+              {PERIOD_ORDER.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
