@@ -139,6 +139,8 @@ export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]
           rows={displayOrders}
           onEdit={(r) => { const o = orders.find((x) => x.id === r.id); if (o) edit(o) }}
           onToggleActive={(r) => { const o = orders.find((x) => x.id === r.id); if (o) toggleActive(o) }}
+          deactivateLabel="Completed"
+          activateLabel="In Progress"
         />
       </div>
     </div>

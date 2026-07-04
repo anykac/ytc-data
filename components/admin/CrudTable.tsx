@@ -10,6 +10,8 @@ type CrudTableProps<T extends { id: string; active?: boolean }> = {
   onToggleActive: (row: T) => void
   onDelete?: (row: T) => void
   onReorder?: (draggedId: string, targetId: string) => void
+  activateLabel?: string
+  deactivateLabel?: string
 }
 
 export default function CrudTable<T extends { id: string; active?: boolean }>({
@@ -19,6 +21,8 @@ export default function CrudTable<T extends { id: string; active?: boolean }>({
   onToggleActive,
   onDelete,
   onReorder,
+  activateLabel = 'Activate',
+  deactivateLabel = 'Deactivate',
 }: CrudTableProps<T>) {
   const [draggedId, setDraggedId] = useState<string | null>(null)
 
@@ -72,7 +76,7 @@ export default function CrudTable<T extends { id: string; active?: boolean }>({
                   onClick={() => onToggleActive(row)}
                   className={`text-xs font-medium cursor-pointer ${row.active === false ? 'text-green-600 hover:text-green-800' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                  {row.active === false ? 'Activate' : 'Deactivate'}
+                  {row.active === false ? activateLabel : deactivateLabel}
                 </button>
                 {onDelete && row.active === false && (
                   <button
