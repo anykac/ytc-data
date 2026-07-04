@@ -144,24 +144,37 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-5 max-w-lg mx-auto">
         <h1 className="text-xl font-semibold text-gray-900">Log Production Entry</h1>
 
-        {/* Lead */}
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">Lead</label>
-          <div className="relative">
-            <Combobox
-              options={leads.map(l => ({ id: l.name, label: l.name }))}
-              value={form.leadName || undefined}
-              onChange={id => set('leadName', id ?? '')}
-              placeholder="Select lead"
-              className="w-full"
-            />
+        {/* Lead + Password */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Lead</label>
+            <div className="relative">
+              <Combobox
+                options={leads.map(l => ({ id: l.name, label: l.name }))}
+                value={form.leadName || undefined}
+                onChange={id => set('leadName', id ?? '')}
+                placeholder="Select lead"
+                className="w-full"
+              />
+              <input
+                tabIndex={-1}
+                autoComplete="off"
+                required
+                value={form.leadName}
+                onChange={() => {}}
+                className="absolute inset-x-0 bottom-0 h-0 w-full opacity-0 pointer-events-none"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Password</label>
             <input
-              tabIndex={-1}
-              autoComplete="off"
+              type="password"
               required
-              value={form.leadName}
-              onChange={() => {}}
-              className="absolute inset-x-0 bottom-0 h-0 w-full opacity-0 pointer-events-none"
+              value={form.password}
+              onChange={e => set('password', e.target.value)}
+              className={INPUT_CLS}
+              placeholder="Lead password"
             />
           </div>
         </div>
@@ -272,19 +285,6 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
               />
             </div>
           ))}
-        </div>
-
-        {/* Password */}
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">Password</label>
-          <input
-            type="password"
-            required
-            value={form.password}
-            onChange={e => set('password', e.target.value)}
-            className={INPUT_CLS}
-            placeholder="Lead password"
-          />
         </div>
 
         {/* Status messages */}

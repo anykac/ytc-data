@@ -23,7 +23,10 @@ export default function Combobox({ options, value, onChange, placeholder, classN
     latestRef.current = { options, value }
   })
 
-  const filtered = query === ''
+  // Show the full list until the displayed text actually diverges from the current
+  // selection (or is empty) — otherwise reopening a filled-in box would filter down
+  // to just the one already-selected option instead of letting you browse everything.
+  const filtered = (query === '' || query === selected?.label)
     ? options
     : options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
 
@@ -77,10 +80,10 @@ export default function Combobox({ options, value, onChange, placeholder, classN
         onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
         onFocus={() => setOpen(true)}
         onBlur={handleBlur}
-        className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full outline-none focus:ring-2 focus:ring-blue-300"
+        className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white w-full outline-none focus:ring-2 focus:ring-blue-300"
       />
       {open && (
-        <ul className="absolute z-20 mt-1 w-full min-w-max bg-white border rounded shadow-lg max-h-52 overflow-auto text-sm">
+        <ul className="absolute z-20 mt-1 w-full min-w-max bg-white border border-gray-300 rounded-lg shadow-lg max-h-52 overflow-auto text-sm">
           <li
             onMouseDown={() => select(undefined)}
             className="px-3 py-2 cursor-pointer hover:bg-gray-50 text-gray-400 italic"
