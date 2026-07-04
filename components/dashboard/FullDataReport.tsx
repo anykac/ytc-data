@@ -94,21 +94,21 @@ export default function FullDataReport({ fetchReport }: Props) {
             type="date"
             value={start}
             onChange={(e) => setRange({ start: e.target.value, end })}
-            className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white"
+            className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white cursor-pointer"
           />
           <span className="text-sm text-gray-500">to</span>
           <input
             type="date"
             value={end}
             onChange={(e) => setRange({ start, end: e.target.value })}
-            className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white"
+            className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white cursor-pointer"
           />
         </div>
         <button
           type="button"
           onClick={handleExportCsv}
           disabled={rows.length === 0}
-          className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
         >
           Export CSV
         </button>
