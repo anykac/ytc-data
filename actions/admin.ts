@@ -387,7 +387,13 @@ export async function inviteUser(email: string): Promise<ActionResult> {
     throw new Error('Invalid email address')
   await requireRole('admin')
   const supabase = createAdminClient()
-  const { error } = await supabase.auth.admin.inviteUserByEmail(email)
+  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email)
   if (error) throw error
+
+  const { error: roleError } = await supabase
+    .from('user_roles')
+    .upsert({ user_id: data.user.id, role: 'supervisor' }, { onConflict: 'user_id' })
+  if (roleError) throw roleError
+  revalidatePath('/admin/accounts')
   })
 }
