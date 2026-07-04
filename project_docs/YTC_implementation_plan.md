@@ -2172,13 +2172,13 @@ In Supabase → Authentication → URL Configuration:
 
 ### Task 6.3: Configure keep-alive cron
 
-- [ ] **Set up cron-job.org**
+- [x] **Set up cron-job.org**
   1. Create a free account at cron-job.org
-  2. New cronjob → URL: `https://your-vercel-url.vercel.app/api/ping`
+  2. New cronjob → URL: `https://ytc-data.vercel.app/api/ping`
   3. Schedule: Daily (any time)
   4. Save and enable
 
-- [ ] **Verify** — trigger the cron manually from the dashboard, confirm it returns HTTP 200.
+- [x] **Verify** — trigger the cron manually from the dashboard, confirm it returns HTTP 200.
 
 ---
 
