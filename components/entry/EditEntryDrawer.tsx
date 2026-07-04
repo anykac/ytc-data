@@ -2,7 +2,7 @@
 
 import { useTransition, useState } from 'react'
 import { searchEntries, editEntry, type EditResult } from '@/actions/entry'
-import { PERIODS } from '@/components/entry/EntryForm'
+import { PERIOD_ORDER as PERIODS } from '@/lib/constants'
 
 const INPUT_CLS = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900'
 const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
