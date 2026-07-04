@@ -1137,7 +1137,7 @@ A read-only Admin page listing every edit made via `EditEntryDrawer` (T3.3), so 
 
 **Access:** Supervisor and Admin (same level as Orders/Models/Leads) — `requireRole('supervisor')`, nav item `adminOnly: false`.
 
-- [ ] **Create `lib/db/admin.ts`**
+- [x] **Create `lib/db/admin.ts`**
 
 ```typescript
 export type EditHistoryRow = {
@@ -1161,7 +1161,7 @@ Query `period_log_edits` filtered by `edited_at` between `startDate` and `endDat
 
 Follow the same error-handling shape as `getFullDataReport` (destructure and throw `error`, return `[]` on empty).
 
-- [ ] **Create `app/admin/edit-history/page.tsx`**
+- [x] **Create `app/admin/edit-history/page.tsx`**
 
 ```typescript
 export default async function EditHistoryPage() {
@@ -1170,15 +1170,15 @@ export default async function EditHistoryPage() {
 }
 ```
 
-- [ ] **Create `components/admin/EditHistory.tsx`** — client component, structurally a twin of `FullDataReport.tsx`:
+- [x] **Create `components/admin/EditHistory.tsx`** — client component, structurally a twin of `FullDataReport.tsx`:
   - Date-range inputs (default current calendar month), filtering by `edited_at`
   - Loading / error / empty states, same copy conventions as `FullDataReport.tsx`
   - Single flat table (no date-grouping): Edited At | Editor | Entry (date · period · station · model) | Target | Actual | PAX | Defects
   - Each of Target/Actual/PAX/Defects always renders `prev → new`; wrap the pair in the existing amber "edited" badge style (`bg-amber-100 text-amber-700`) when `prev !== new`, plain text otherwise
 
-- [ ] **Add "Edit History" to `app/admin/layout.tsx` nav** (`adminOnly: false`)
+- [x] **Add "Edit History" to `app/admin/layout.tsx` nav** (`adminOnly: false`)
 
-- [ ] **Write unit tests** for `getEditHistory` in `__tests__/admin-queries.test.ts`, following the `dashboard-queries.test.ts` mocking pattern:
+- [x] **Write unit tests** for `getEditHistory` in `__tests__/admin-queries.test.ts`, following the `dashboard-queries.test.ts` mocking pattern:
   - Joins rows with station/model/editor names instead of raw ids
   - Sorts by `edited_at` descending
   - Filters by the `edited_at` date range (inclusive)
