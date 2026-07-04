@@ -1767,19 +1767,19 @@ type FullDataReportRow = {
 }
 ```
 
-- [ ] **Write failing tests** for `getFullDataReport(startDate, endDate)`:
+- [x] **Write failing tests** for `getFullDataReport(startDate, endDate)`:
   - Rows are joined with station/model/lead names, not raw IDs
   - Sorted by date ascending, then period, then station sequence within each date
   - `edited` is `true` only for rows with a matching `period_log_edits.period_log_id`
   - Empty range (no matching rows) returns `[]`
 
-- [ ] **Run tests to confirm they fail**
+- [x] **Run tests to confirm they fail**
 
 ```bash
 npm test -- dashboard-queries
 ```
 
-- [ ] **Add `getFullDataReport` to `lib/db/dashboard.ts`**
+- [x] **Add `getFullDataReport` to `lib/db/dashboard.ts`**
 
 ```typescript
 export type FullDataReportRow = {
@@ -1851,13 +1851,13 @@ export async function getFullDataReport(startDate: string, endDate: string): Pro
 
 > **Input validation reminder (per `CLAUDE.md` implementation standards):** `startDate`/`endDate` reach this function from a client-controlled date-range picker. The page/component calling `getFullDataReport` must validate both are well-formed `YYYY-MM-DD` strings and `startDate <= endDate` *before* calling it — reject with an inline error otherwise, same pattern as the duplicate-entry check in `actions/entry.ts`.
 
-- [ ] **Run tests — confirm they pass**
+- [x] **Run tests — confirm they pass**
 
 ```bash
 npm test -- dashboard-queries
 ```
 
-- [ ] **Create `components/dashboard/FullDataReport.tsx`** — client component:
+- [x] **Create `components/dashboard/FullDataReport.tsx`** — client component:
   - Date range inputs (start/end), defaulting to the first/last day of the current calendar month on mount
   - Validates `start <= end` before calling the server action; shows inline error otherwise (query not run)
   - Calls `getFullDataReport` on mount and whenever the range changes
@@ -1867,9 +1867,9 @@ npm test -- dashboard-queries
   - Error state: "Failed to load report — please try again."
   - "Export CSV" button — converts the rows currently held in component state (already fetched, not re-queried) to a CSV string with headers `Date, Period, Station, Model, Target, Actual, PAX, Defects, Submitted By, Submitted At, Edited`, and triggers a download via `Blob` + a temporary `<a download>` element
 
-- [ ] **Create `app/dashboard/report/page.tsx`** — server component shell rendering `<FullDataReport />`. No auth logic needed here — `middleware.ts`'s existing `/dashboard/:path*` matcher already gates this route to Supervisor/Admin.
+- [x] **Create `app/dashboard/report/page.tsx`** — server component shell rendering `<FullDataReport />`. No auth logic needed here — `middleware.ts`'s existing `/dashboard/:path*` matcher already gates this route to Supervisor/Admin.
 
-- [ ] **Add a "Full Data Report" tab link** alongside the existing Daily Summary / Pipeline / Model Progress tab links in the dashboard nav.
+- [x] **Add a "Full Data Report" tab link** alongside the existing Daily Summary / Pipeline / Model Progress tab links in the dashboard nav.
 
 - [ ] **Manually verify**
 
