@@ -63,14 +63,10 @@ export default function OrdersAdmin({ orders, models, lines, customers }: { orde
 
   async function submit(data: Form) {
     setSaving(true); setError('')
-    try {
-      await upsertOrder({ ...data, lines: data.lines.filter((l) => l.modelId && l.quantity > 0) })
-      setForm(null)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Save failed')
-    } finally {
-      setSaving(false)
-    }
+    const result = await upsertOrder({ ...data, lines: data.lines.filter((l) => l.modelId && l.quantity > 0) })
+    if (result.error) setError(result.error)
+    else setForm(null)
+    setSaving(false)
   }
 
   const displayOrders = ordersForCustomer.map((o) => ({

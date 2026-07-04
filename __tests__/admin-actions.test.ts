@@ -87,7 +87,8 @@ describe('upsertOrder', () => {
       },
     })
 
-    await expect(upsertOrder({ ...baseOrder, customerId: MEANWELL })).rejects.toThrow(/customer/i)
+    const result = await upsertOrder({ ...baseOrder, customerId: MEANWELL })
+    expect(result.error).toMatch(/customer/i)
   })
 
   it('inserts a new order with the given customer_id when all lines match', async () => {
@@ -128,6 +129,7 @@ describe('upsertOrder', () => {
 
     // Client claims Martindale, but the existing order is actually Meanwell — the
     // server must use the order's own (DB) customer, not this value, to validate lines.
-    await expect(upsertOrder({ ...baseOrder, id: orderId, customerId: MARTINDALE })).rejects.toThrow(/customer/i)
+    const result = await upsertOrder({ ...baseOrder, id: orderId, customerId: MARTINDALE })
+    expect(result.error).toMatch(/customer/i)
   })
 })

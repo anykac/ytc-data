@@ -65,14 +65,10 @@ export default function ModelsAdmin({
 
   async function submit(data: Form) {
     setSaving(true); setError('')
-    try {
-      await upsertModel(data)
-      setForm(null)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Save failed')
-    } finally {
-      setSaving(false)
-    }
+    const result = await upsertModel(data)
+    if (result.error) setError(result.error)
+    else setForm(null)
+    setSaving(false)
   }
 
   return (

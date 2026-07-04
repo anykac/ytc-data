@@ -19,18 +19,15 @@ export default function AccountsAdmin({ users }: { users: User[] }) {
     if (value === (roles[userId] ?? 'none')) return
     setSaving(userId)
     setErrors((e) => ({ ...e, [userId]: '' }))
-    try {
-      if (value === 'none') {
-        await removeUserRole(userId)
-      } else {
-        await setUserRole(userId, value as 'supervisor' | 'admin')
-      }
+    const result = value === 'none'
+      ? await removeUserRole(userId)
+      : await setUserRole(userId, value as 'supervisor' | 'admin')
+    if (result.error) {
+      setErrors((prev) => ({ ...prev, [userId]: result.error! }))
+    } else {
       setRoles((r) => ({ ...r, [userId]: value }))
-    } catch (e: unknown) {
-      setErrors((prev) => ({ ...prev, [userId]: e instanceof Error ? e.message : 'Failed' }))
-    } finally {
-      setSaving(null)
     }
+    setSaving(null)
   }
 
   async function handleInvite(e: React.FormEvent) {
@@ -38,15 +35,14 @@ export default function AccountsAdmin({ users }: { users: User[] }) {
     setInviting(true)
     setInviteError('')
     setInviteSuccess('')
-    try {
-      await inviteUser(inviteEmail)
+    const result = await inviteUser(inviteEmail)
+    if (result.error) {
+      setInviteError(result.error)
+    } else {
       setInviteSuccess(`Invite sent to ${inviteEmail}`)
       setInviteEmail('')
-    } catch (err: unknown) {
-      setInviteError(err instanceof Error ? err.message : 'Invite failed')
-    } finally {
-      setInviting(false)
     }
+    setInviting(false)
   }
 
   return (
