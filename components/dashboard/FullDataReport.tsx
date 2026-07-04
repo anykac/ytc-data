@@ -132,9 +132,13 @@ export default function FullDataReport({ fetchReport }: Props) {
         <div className="space-y-6">
           {groups.map((group) => (
             <div key={group.date} className="overflow-x-auto rounded-lg border border-gray-200">
-              <div className="bg-gray-100 px-4 py-2 font-medium text-gray-900 text-sm">{group.date}</div>
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-gray-600 text-left">
+                  <tr>
+                    <th colSpan={10} className="bg-gray-100 px-4 py-2 font-medium text-gray-900 text-sm">
+                      {group.date}
+                    </th>
+                  </tr>
                   <tr>
                     <th className="px-4 py-3 font-medium">Period</th>
                     <th className="px-4 py-3 font-medium">Station</th>
