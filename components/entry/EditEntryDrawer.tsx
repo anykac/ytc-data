@@ -5,11 +5,7 @@ import { searchEntries, editEntry, type EditResult } from '@/actions/entry'
 import { PERIOD_ORDER as PERIODS } from '@/lib/constants'
 
 const INPUT_CLS = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900'
-const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
-
-function selectCls(value: string) {
-  return `${BASE_SELECT} ${value ? 'text-gray-900' : 'text-gray-400'}`
-}
+const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900'
 
 type Station = { id: string; name: string }
 type Lead = { id: string; name: string }
@@ -54,13 +50,13 @@ function today() {
   return new Date().toISOString().split('T')[0]
 }
 
-function editFormFromRow(row: SearchResultRow, leads: Lead[]): EditFormState {
+function editFormFromRow(row: SearchResultRow): EditFormState {
   return {
     target: String(row.target),
     actual: String(row.actual),
     pax: String(row.pax),
     defects: String(row.defects),
-    leadName: leads[0]?.name ?? '',
+    leadName: '',
     password: '',
   }
 }
@@ -107,7 +103,7 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
 
   function selectRow(row: SearchResultRow) {
     setSelected(row)
-    setEditForm(editFormFromRow(row, leads))
+    setEditForm(editFormFromRow(row))
     setEditResult(null)
   }
 
@@ -159,9 +155,9 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
                   required
                   value={stationId}
                   onChange={e => setStationId(e.target.value)}
-                  className={selectCls(stationId)}
+                  className={BASE_SELECT}
                 >
-                  <option value="">Select station</option>
+                  <option value="" className="text-gray-400">Select station</option>
                   {stations.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
@@ -175,7 +171,7 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
                     required
                     value={period}
                     onChange={e => setPeriod(e.target.value)}
-                    className={`${BASE_SELECT} text-gray-900`}
+                    className={BASE_SELECT}
                   >
                     {PERIODS.map(p => (
                       <option key={p} value={p}>{p}</option>
@@ -189,7 +185,7 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
                     required
                     value={date}
                     onChange={e => setDate(e.target.value)}
-                    className={INPUT_CLS}
+                    className={`${INPUT_CLS} cursor-pointer`}
                   />
                 </div>
               </div>
@@ -302,9 +298,9 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
                   required
                   value={editForm.leadName}
                   onChange={e => set('leadName', e.target.value)}
-                  className={selectCls(editForm.leadName)}
+                  className={BASE_SELECT}
                 >
-                  <option value="">Select lead</option>
+                  <option value="" className="text-gray-400">Select lead</option>
                   {leads.map(l => (
                     <option key={l.id} value={l.name}>{l.name}</option>
                   ))}

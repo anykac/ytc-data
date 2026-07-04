@@ -15,7 +15,7 @@ export default function DatePicker({ value }: { value: string }) {
     <input
       type="date"
       defaultValue={value}
-      className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white"
+      className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white cursor-pointer"
       onChange={onChange}
     />
   )

@@ -6,7 +6,7 @@ export default async function ModelsPage() {
   await requireRole('supervisor')
   const supabase = createAdminClient()
   const [{ data: customers, error: cuErr }, { data: models, error: me }, { data: stations, error: se }] = await Promise.all([
-    supabase.from('customers').select('id, name').eq('active', true).order('name'),
+    supabase.from('customers').select('id, name').eq('active', true).order('sort_order'),
     supabase.from('models').select('id, name, active, customer_id').order('name'),
     supabase.from('stations').select('id, name, sequence, customer_id').eq('active', true).order('sequence'),
   ])

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { upsertOrder } from '@/actions/admin'
 import CrudTable from '@/components/admin/CrudTable'
 import CustomerTabs from '@/components/admin/CustomerTabs'
+import Combobox from '@/components/ui/Combobox'
 import { DEFAULT_CUSTOMER_NAME } from '@/lib/constants'
 
 type Customer = { id: string; name: string }
@@ -92,12 +93,12 @@ export default function OrdersAdmin({ orders, models, lines, customers }: { orde
             <div>
               <label className="block text-sm text-gray-600 mb-1">Order date</label>
               <input required type="date" value={form.orderDate} onChange={(e) => setForm({ ...form, orderDate: e.target.value })}
-                className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full" />
+                className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full cursor-pointer" />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Due date</label>
               <input required type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full" />
+                className="border rounded px-3 py-1.5 text-sm text-gray-900 bg-white w-full cursor-pointer" />
             </div>
           </div>
 
@@ -106,11 +107,23 @@ export default function OrdersAdmin({ orders, models, lines, customers }: { orde
             <div className="space-y-2">
               {form.lines.map((line, i) => (
                 <div key={i} className="flex gap-2 items-center">
-                  <select required value={line.modelId} onChange={(e) => setLine(i, 'modelId', e.target.value)}
-                    className="border rounded px-2 py-1.5 text-sm flex-1 bg-white text-gray-900">
-                    <option value="">Select model…</option>
-                    {modelsForFormCustomer.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
+                  <div className="relative flex-1">
+                    <Combobox
+                      options={modelsForFormCustomer.map((m) => ({ id: m.id, label: m.name }))}
+                      value={line.modelId || undefined}
+                      onChange={(id) => setLine(i, 'modelId', id ?? '')}
+                      placeholder="Select model…"
+                      className="w-full"
+                    />
+                    <input
+                      tabIndex={-1}
+                      autoComplete="off"
+                      required
+                      value={line.modelId}
+                      onChange={() => {}}
+                      className="absolute inset-x-0 bottom-0 h-0 w-full opacity-0 pointer-events-none"
+                    />
+                  </div>
                   <input required type="number" min={1} placeholder="Qty" value={line.quantity || ''}
                     onChange={(e) => setLine(i, 'quantity', parseInt(e.target.value) || 0)}
                     className="border rounded px-2 py-1.5 text-sm text-gray-900 bg-white w-24" />
@@ -133,10 +146,10 @@ export default function OrdersAdmin({ orders, models, lines, customers }: { orde
           </label>
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={saving} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
               {saving ? 'Saving…' : 'Save'}
             </button>
-            <button type="button" onClick={() => setForm(null)} className="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900">
+            <button type="button" onClick={() => setForm(null)} className="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900 cursor-pointer">
               Cancel
             </button>
           </div>
@@ -146,7 +159,7 @@ export default function OrdersAdmin({ orders, models, lines, customers }: { orde
       <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Orders</h1>
-          <button onClick={() => { setForm(blank()); setError('') }} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+          <button onClick={() => { setForm(blank()); setError('') }} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 cursor-pointer">
             + New order
           </button>
         </div>

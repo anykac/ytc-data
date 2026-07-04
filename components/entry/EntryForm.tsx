@@ -4,14 +4,11 @@ import { useTransition, useState, useMemo } from 'react'
 import { submitEntry, type EntryResult } from '@/actions/entry'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import EditEntryDrawer from '@/components/entry/EditEntryDrawer'
+import Combobox from '@/components/ui/Combobox'
 import { PERIOD_ORDER, DEFAULT_CUSTOMER_NAME } from '@/lib/constants'
 
 const INPUT_CLS = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900'
-const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
-
-function selectCls(value: string) {
-  return `${BASE_SELECT} ${value ? 'text-gray-900' : 'text-gray-400'}`
-}
+const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900'
 
 type Customer = { id: string; name: string }
 type Station = { id: string; name: string; sequence: number; customer_id: string }
@@ -54,7 +51,7 @@ function emptyForm(leads: Lead[], customers: Customer[]): FormState {
     actual: '',
     pax: '',
     defects: '',
-    leadName: leads[0]?.name ?? '',
+    leadName: '',
     password: '',
   }
 }
@@ -147,6 +144,41 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-5 max-w-lg mx-auto">
         <h1 className="text-xl font-semibold text-gray-900">Log Production Entry</h1>
 
+        {/* Lead + Password */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Lead</label>
+            <div className="relative">
+              <Combobox
+                options={leads.map(l => ({ id: l.name, label: l.name }))}
+                value={form.leadName || undefined}
+                onChange={id => set('leadName', id ?? '')}
+                placeholder="Select lead"
+                className="w-full"
+              />
+              <input
+                tabIndex={-1}
+                autoComplete="off"
+                required
+                value={form.leadName}
+                onChange={() => {}}
+                className="absolute inset-x-0 bottom-0 h-0 w-full opacity-0 pointer-events-none"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Password</label>
+            <input
+              type="password"
+              required
+              value={form.password}
+              onChange={e => set('password', e.target.value)}
+              className={INPUT_CLS}
+              placeholder="Lead password"
+            />
+          </div>
+        </div>
+
         {/* Customer */}
         <div className="space-y-1">
           <label className="text-sm font-medium text-gray-700">Customer</label>
@@ -174,7 +206,7 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
               required
               value={form.date}
               onChange={e => set('date', e.target.value)}
-              className={INPUT_CLS}
+              className={`${INPUT_CLS} cursor-pointer`}
             />
           </div>
           <div className="space-y-1">
@@ -183,7 +215,7 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
               required
               value={form.period}
               onChange={e => set('period', e.target.value)}
-              className={`${BASE_SELECT} text-gray-900`}
+              className={BASE_SELECT}
             >
               {PERIOD_ORDER.map(p => (
                 <option key={p} value={p}>{p}</option>
@@ -200,9 +232,9 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
               required
               value={form.stationId}
               onChange={e => set('stationId', e.target.value)}
-              className={selectCls(form.stationId)}
+              className={BASE_SELECT}
             >
-              <option value="">Select station</option>
+              <option value="" className="text-gray-400">Select station</option>
               {filteredStations.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
@@ -210,17 +242,23 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700">Model</label>
-            <select
-              required
-              value={form.modelId}
-              onChange={e => set('modelId', e.target.value)}
-              className={selectCls(form.modelId)}
-            >
-              <option value="">Select model</option>
-              {filteredModels.map(m => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <Combobox
+                options={filteredModels.map(m => ({ id: m.id, label: m.name }))}
+                value={form.modelId || undefined}
+                onChange={id => set('modelId', id ?? '')}
+                placeholder="Select model"
+                className="w-full"
+              />
+              <input
+                tabIndex={-1}
+                autoComplete="off"
+                required
+                value={form.modelId}
+                onChange={() => {}}
+                className="absolute inset-x-0 bottom-0 h-0 w-full opacity-0 pointer-events-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -247,35 +285,6 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
               />
             </div>
           ))}
-        </div>
-
-        {/* Lead + Password */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Lead</label>
-            <select
-              required
-              value={form.leadName}
-              onChange={e => set('leadName', e.target.value)}
-              className={selectCls(form.leadName)}
-            >
-              <option value="">Select lead</option>
-              {leads.map(l => (
-                <option key={l.id} value={l.name}>{l.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Password</label>
-            <input
-              type="password"
-              required
-              value={form.password}
-              onChange={e => set('password', e.target.value)}
-              className={INPUT_CLS}
-              placeholder="Lead password"
-            />
-          </div>
         </div>
 
         {/* Status messages */}

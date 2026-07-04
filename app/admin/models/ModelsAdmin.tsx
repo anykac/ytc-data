@@ -106,10 +106,10 @@ export default function ModelsAdmin({
           </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={saving} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
               {saving ? 'Saving…' : 'Save'}
             </button>
-            <button type="button" onClick={() => setForm(null)} className="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900">
+            <button type="button" onClick={() => setForm(null)} className="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900 cursor-pointer">
               Cancel
             </button>
           </div>
@@ -119,7 +119,7 @@ export default function ModelsAdmin({
       <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Models</h1>
-          <button onClick={() => { setForm(blank()); setError('') }} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+          <button onClick={() => { setForm(blank()); setError('') }} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 cursor-pointer">
             + New model
           </button>
         </div>
