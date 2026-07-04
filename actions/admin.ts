@@ -17,7 +17,7 @@ function assertDate(val: string, field: string) {
     throw new Error(`Invalid ${field}`)
 }
 
-// ── Stations ──────────────────────────────────────────────────────────────────
+// ── Stations (admin only) ─────────────────────────────────────────────────────
 
 export async function upsertStation(data: {
   id?: string
@@ -26,7 +26,7 @@ export async function upsertStation(data: {
   active: boolean
 }) {
   if (data.id) assertUuid(data.id, 'station id')
-  await requireRole('supervisor')
+  await requireRole('admin')
   const supabase = createAdminClient()
 
   if (data.id) {
@@ -36,11 +36,77 @@ export async function upsertStation(data: {
       .eq('id', data.id)
     if (error) throw error
   } else {
+    // Shift all existing stations at or above the insertion sequence up by 1,
+    // highest first to avoid any ordering issues.
+    const { data: toShift, error: fetchError } = await supabase
+      .from('stations')
+      .select('id, sequence')
+      .gte('sequence', data.sequence)
+      .order('sequence', { ascending: false })
+    if (fetchError) throw fetchError
+
+    for (const s of toShift ?? []) {
+      const { error: shiftError } = await supabase
+        .from('stations').update({ sequence: s.sequence + 1 }).eq('id', s.id)
+      if (shiftError) throw shiftError
+    }
+
     const { error } = await supabase
       .from('stations')
       .insert({ name: data.name, sequence: data.sequence, active: data.active })
     if (error) throw error
   }
+  revalidatePath('/admin/stations')
+}
+
+export async function deleteStation(id: string) {
+  assertUuid(id, 'station id')
+  await requireRole('admin')
+  const supabase = createAdminClient()
+
+  // Read sequence before deleting so we can re-gap remaining stations
+  const { data: station, error: fetchError } = await supabase
+    .from('stations')
+    .select('sequence')
+    .eq('id', id)
+    .maybeSingle()
+  if (fetchError) throw fetchError
+  if (!station) throw new Error('Station not found')
+
+  const { error } = await supabase.from('stations').delete().eq('id', id)
+  if (error) {
+    if (error.code === '23503') throw new Error('Cannot delete: station has historical production logs')
+    throw error
+  }
+
+  // Close the gap — shift everything above down by 1, lowest first
+  const { data: following, error: followError } = await supabase
+    .from('stations')
+    .select('id, sequence')
+    .gt('sequence', station.sequence)
+    .order('sequence', { ascending: true })
+  if (followError) throw followError
+
+  for (const s of following ?? []) {
+    const { error: shiftError } = await supabase
+      .from('stations').update({ sequence: s.sequence - 1 }).eq('id', s.id)
+    if (shiftError) throw shiftError
+  }
+
+  revalidatePath('/admin/stations')
+}
+
+export async function reorderStations(updates: { id: string; sequence: number }[]) {
+  updates.forEach((u, i) => assertUuid(u.id, `updates[${i}].id`))
+  await requireRole('admin')
+  const supabase = createAdminClient()
+
+  for (const u of updates) {
+    const { error } = await supabase
+      .from('stations').update({ sequence: u.sequence }).eq('id', u.id)
+    if (error) throw error
+  }
+
   revalidatePath('/admin/stations')
 }
 
@@ -242,4 +308,13 @@ export async function removeUserRole(userId: string) {
   const { error } = await supabase.from('user_roles').delete().eq('user_id', userId)
   if (error) throw error
   revalidatePath('/admin/accounts')
+}
+
+export async function inviteUser(email: string) {
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    throw new Error('Invalid email address')
+  await requireRole('admin')
+  const supabase = createAdminClient()
+  const { error } = await supabase.auth.admin.inviteUserByEmail(email)
+  if (error) throw error
 }
