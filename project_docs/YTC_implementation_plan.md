@@ -1116,11 +1116,87 @@ git commit -m "feat: entry form UI with duplicate warning and auth error handlin
 4. Click it, change Actual, submit with correct password → confirm update
 5. Try with wrong password → confirm error, no change
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add components/entry/EditEntryDrawer.tsx
 git commit -m "feat: edit entry drawer with audit log"
+```
+
+---
+
+### Task 3.4 🔵 Anyka: Edit History (Admin)
+
+A read-only Admin page listing every edit made via `EditEntryDrawer` (T3.3), so a supervisor can see who changed what and when without digging through the database. Lives in Admin rather than Dashboard since it's an audit/oversight tool, not a production-metrics view.
+
+**Files:**
+- Create: `lib/db/admin.ts` — query function (parallels the `actions/admin.ts` vs `actions/entry.ts` split; keeps `lib/db/dashboard.ts` scoped to Dashboard queries)
+- Create: `app/admin/edit-history/page.tsx` — server component
+- Create: `components/admin/EditHistory.tsx` — client component
+- Modify: `app/admin/layout.tsx` — add "Edit History" nav item
+
+**Access:** Supervisor and Admin (same level as Orders/Models/Leads) — `requireRole('supervisor')`, nav item `adminOnly: false`.
+
+- [ ] **Create `lib/db/admin.ts`**
+
+```typescript
+export type EditHistoryRow = {
+  editId: string
+  editedAt: string
+  editedByName: string
+  entryDate: string
+  period: string
+  stationName: string
+  modelName: string
+  target: { prev: number; new: number }
+  actual: { prev: number; new: number }
+  pax: { prev: number; new: number }
+  defects: { prev: number; new: number }
+}
+
+export async function getEditHistory(startDate: string, endDate: string): Promise<EditHistoryRow[]>
+```
+
+Query `period_log_edits` filtered by `edited_at` between `startDate` and `endDate` (inclusive; `endDate` needs an end-of-day bound since `edited_at` is a timestamp, not a date), joined to `period_log!inner(date, period, stations!inner(name), models!inner(name))` for entry context and `leads!inner(name)` for the editor. Sort `edited_at` descending (newest edit first) — this is an audit log of *when things changed*, not a per-day report, so no date-grouping like Full Data Report.
+
+Follow the same error-handling shape as `getFullDataReport` (destructure and throw `error`, return `[]` on empty).
+
+- [ ] **Create `app/admin/edit-history/page.tsx`**
+
+```typescript
+export default async function EditHistoryPage() {
+  await requireRole('supervisor')
+  return <EditHistory fetchHistory={getEditHistory} />
+}
+```
+
+- [ ] **Create `components/admin/EditHistory.tsx`** — client component, structurally a twin of `FullDataReport.tsx`:
+  - Date-range inputs (default current calendar month), filtering by `edited_at`
+  - Loading / error / empty states, same copy conventions as `FullDataReport.tsx`
+  - Single flat table (no date-grouping): Edited At | Editor | Entry (date · period · station · model) | Target | Actual | PAX | Defects
+  - Each of Target/Actual/PAX/Defects always renders `prev → new`; wrap the pair in the existing amber "edited" badge style (`bg-amber-100 text-amber-700`) when `prev !== new`, plain text otherwise
+
+- [ ] **Add "Edit History" to `app/admin/layout.tsx` nav** (`adminOnly: false`)
+
+- [ ] **Write unit tests** for `getEditHistory` in `__tests__/admin-queries.test.ts`, following the `dashboard-queries.test.ts` mocking pattern:
+  - Joins rows with station/model/editor names instead of raw ids
+  - Sorts by `edited_at` descending
+  - Filters by the `edited_at` date range (inclusive)
+  - Returns `[]` for a range with no matching edits
+
+- [ ] **Manually test**
+
+1. Edit an entry via the Entry page's Edit drawer (T3.3) with two changed fields and one unchanged
+2. Open `/admin/edit-history` as a supervisor → confirm the edit appears with correct prev/new values, changed fields highlighted, unchanged fields plain
+3. Confirm the editor name and entry (date/period/station/model) match what was edited
+4. Change the date range to exclude today → confirm the edit disappears
+5. Confirm a line lead cannot reach `/admin/edit-history` (redirected)
+
+- [ ] **Commit**
+
+```bash
+git add lib/db/admin.ts app/admin/edit-history/ app/admin/layout.tsx __tests__/admin-queries.test.ts
+git commit -m "feat: edit history admin page (T3.4)"
 ```
 
 ---

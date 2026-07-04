@@ -225,6 +225,13 @@ Four management tables (create / edit / deactivate):
 - **Orders** — order number, order date, due date, line items (model + quantity)
 - **Leads** — name, set/reset password, active
 
+**Edit History** (read-only audit log, distinct from the four CRUD tables above)
+- Date range picker (start/end), defaults to the current calendar month, filters by `period_log_edits.edited_at` (when the edit happened, not the production date of the entry that was edited)
+- One row per edit, sorted by `edited_at` descending (newest first) — a flat log, not grouped by date
+- Columns: Edited At | Editor | Entry (date · period · station · model) | Target | Actual | PAX | Defects
+- Target/Actual/PAX/Defects always render `prev → new`; visually highlighted only when the value actually changed
+- Reuses the existing `period_log_edits` SELECT policy (Supervisor/Admin) — no new RLS policy required
+
 ### 6.4 Account Management (Admin only)
 
 - Invite Supervisors/Admins via Google OAuth (Supabase Auth invite flow)
@@ -271,6 +278,9 @@ Line lead writes bypass RLS using the Supabase **service role key** (server-side
 | Full Data Report: invalid range (start > end, or malformed date) | Inline validation error; query not run. |
 | Full Data Report: no rows in range | Empty state: "No entries found for this date range." |
 | Full Data Report: query failure | Generic "Failed to load report — please try again." |
+| Edit History: invalid range (start > end, or malformed date) | Inline validation error; query not run. |
+| Edit History: no edits in range | Empty state: "No edits found for this date range." |
+| Edit History: query failure | Generic "Failed to load edit history — please try again." |
 
 ---
 
@@ -300,6 +310,7 @@ Line lead writes bypass RLS using the Supabase **service role key** (server-side
 - **Full Data Report tab** (FR-2.9) — raw `period_log` entries for a supervisor-selected date range, grouped by date, with edited-entry flagging and CSV export of the loaded range. Pulled forward from the original P2 CSV-export item because raw-entry visibility/export is needed before the rest of P2. Distinct from FR-2.8 below, which covers exporting the aggregated Daily Summary / Pipeline / Model Progress views themselves.
 - **Order-Model Step Tracker** — per-step progress table and chart for a specific order+model combination, accessible by clicking a model row in the Model Progress view. Shows cumulative output, active inputs (WIP), and order attainment % per station; chart displays cumulative output (line), per-period output (bar), and active inputs (bar) for the selected step.
 - Stations / models / orders / leads CRUD (FR-3.1, FR-3.3)
+- **Edit History admin page** (FR-3.4) — read-only log of every edit recorded under FR-1.6, date-range filtered by when the edit happened, newest first, with entry context, editor, and prev/new values per field
 - RBAC setup — Line Lead, Supervisor, Admin (FR-4.1)
 - Google OAuth for Supervisor/Admin (FR-4.2)
 - Keep-alive cron
@@ -333,5 +344,6 @@ End-to-end test plan for P0:
 7. **Pipeline view** — log production for sequential stations; confirm WIP and gap-to-goal reflect actual vs upstream output.
 7a. **Order-Model Step Tracker** — click a model row in Model Progress; confirm step table shows correct cumulative output, active inputs, and order attainment % per station; select a step and confirm chart renders with correct line and bar series.
 8. **Admin CRUD** — create a station, model, order, and lead; confirm they appear in dropdowns; deactivate one; confirm it disappears from dropdowns but historical logs remain intact.
+8a. **Edit History** — edit an entry with two changed fields and one unchanged; confirm it appears in `/admin/edit-history` with correct editor, entry context, and prev/new values (changed fields highlighted, unchanged fields plain); narrow the date range to exclude the edit and confirm it disappears.
 9. **Role gating** — confirm a line lead cannot access `/dashboard` or `/admin`; confirm a Supervisor can access both but not `/admin/accounts`.
 10. **Keep-alive** — confirm the `/api/ping` endpoint returns 200 and that cron-job.org is configured to hit it daily.

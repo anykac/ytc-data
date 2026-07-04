@@ -111,6 +111,7 @@ Approximate scale: ~8 stations, 4 supervisors, and a few rotating line leads per
 | **FR-3.1** | Admin can create, edit, and deactivate stations, models, leads, and orders. Orders contain one or more line items: each line item specifies a model and quantity (`order_lines` table). An order has an `order_date` (when it was created) and a `due_date` (when it must be completed). | P0 |
 | **FR-3.2** | Admin sets the daily plan: which model each station runs, with targets | P2 |
 | **FR-3.3** | Admin can configure which stations are active for each model via `model_station_config` (model_id, station_id, active). Stations that are inactive for a given model are skipped in that model's pipeline view. | P0 |
+| **FR-3.4** | Edit History — a read-only Admin page listing every edit recorded under FR-1.6, filterable by the date the edit was made, sorted newest first. Shows the entry context (date/period/station/model), who made the edit, and the previous vs. new value for each field. | P0 |
 
 ## **5.4 Admin operational (Access: Admin only)**
 
