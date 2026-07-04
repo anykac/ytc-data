@@ -58,8 +58,10 @@ function emptyForm(leads: Lead[]): FormState {
 export default function EntryForm({ stations, models, leads }: Props) {
   const [form, setForm] = useState<FormState>(() => emptyForm(leads))
   const [result, setResult] = useState<EntryResult | null>(null)
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [pendingPayload, setPendingPayload] = useState<ReturnType<typeof buildPayload> | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const showConfirm = pendingPayload !== null
 
   function set(field: keyof FormState, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -67,18 +69,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
   }
 
   function resetDataFields() {
-    setForm(prev => ({
-      ...prev,
-      date: today(),
-      period: 'P1',
-      stationId: '',
-      modelId: '',
-      target: '',
-      actual: '',
-      pax: '',
-      defects: '',
-      password: '',
-    }))
+    setForm(prev => ({ ...emptyForm(leads), leadName: prev.leadName }))
   }
 
   function buildPayload(confirmDuplicate = false) {
@@ -100,10 +91,11 @@ export default function EntryForm({ stations, models, leads }: Props) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setResult(null)
+    const payload = buildPayload()
     startTransition(async () => {
-      const res = await submitEntry(buildPayload())
+      const res = await submitEntry(payload)
       if (res.status === 'duplicate') {
-        setShowConfirm(true)
+        setPendingPayload(payload)
       } else {
         setResult(res)
         if (res.status === 'success') resetDataFields()
@@ -112,9 +104,11 @@ export default function EntryForm({ stations, models, leads }: Props) {
   }
 
   function handleConfirmDuplicate() {
-    setShowConfirm(false)
+    if (!pendingPayload) return
+    const payload = { ...pendingPayload, confirmDuplicate: true }
+    setPendingPayload(null)
     startTransition(async () => {
-      const res = await submitEntry(buildPayload(true))
+      const res = await submitEntry(payload)
       setResult(res)
       if (res.status === 'success') resetDataFields()
     })
@@ -126,7 +120,8 @@ export default function EntryForm({ stations, models, leads }: Props) {
         <ConfirmDialog
           message="An entry already exists for this station, model, period, and date. Submit anyway?"
           onConfirm={handleConfirmDuplicate}
-          onCancel={() => setShowConfirm(false)}
+          onCancel={() => setPendingPayload(null)}
+          isPending={isPending}
         />
       )}
 
@@ -259,7 +254,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
         )}
         {result?.status === 'error' && (
           <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            Submission failed — please try again.
+            {result.message}
           </p>
         )}
 
