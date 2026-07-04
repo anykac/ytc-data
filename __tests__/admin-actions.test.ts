@@ -172,3 +172,56 @@ describe('inviteUser', () => {
     expect(result.error).toBe('db down')
   })
 })
+
+describe('deleteUser', () => {
+  it('rejects deleting your own account', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: validId(1) }, role: 'admin' })
+
+    const result = await deleteUser(validId(1))
+    expect(result.error).toMatch(/own account/i)
+  })
+
+  it('rejects deleting an account with the admin role', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: validId(1) }, role: 'admin' })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: 'admin' }, error: null }) }) }),
+      }),
+    })
+
+    const result = await deleteUser(validId(2))
+    expect(result.error).toMatch(/admin account/i)
+  })
+
+  it('deletes the auth user when the target is a supervisor', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: validId(1) }, role: 'admin' })
+    const deleteUserMock = jest.fn().mockResolvedValue({ error: null })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: 'supervisor' }, error: null }) }) }),
+      }),
+      auth: { admin: { deleteUser: deleteUserMock } },
+    })
+
+    const result = await deleteUser(validId(2))
+
+    expect(result.error).toBeUndefined()
+    expect(deleteUserMock).toHaveBeenCalledWith(validId(2))
+  })
+
+  it('deletes the auth user when the target has no role assigned', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: validId(1) }, role: 'admin' })
+    const deleteUserMock = jest.fn().mockResolvedValue({ error: null })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
+      }),
+      auth: { admin: { deleteUser: deleteUserMock } },
+    })
+
+    const result = await deleteUser(validId(2))
+
+    expect(result.error).toBeUndefined()
+    expect(deleteUserMock).toHaveBeenCalledWith(validId(2))
+  })
+})
