@@ -55,6 +55,11 @@ export default function AccountsAdmin({ users: initialUsers }: { users: User[] }
       setInviteError(result.error)
     } else {
       setInviteSuccess(`Invite sent to ${inviteEmail}`)
+      if (result.userId) {
+        const newUserId = result.userId
+        setUsers((list) => [...list, { id: newUserId, email: inviteEmail, role: 'supervisor' }])
+        setRoles((r) => ({ ...r, [newUserId]: 'supervisor' }))
+      }
       setInviteEmail('')
     }
     setInviting(false)
