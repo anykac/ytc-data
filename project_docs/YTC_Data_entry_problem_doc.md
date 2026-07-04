@@ -82,7 +82,7 @@ Approximate scale: ~8 stations, 4 supervisors, and a few rotating line leads per
 
 | ID | Requirement | Priority |
 | :---- | :---- | ----- |
-| **FR-1.1** | Operator selects station, period (P-1 to P-6, or Overtime), and model from a dropdown populated by the station table, and enters Target output, Actual output, PAX (people on the station), Defects | P0 |
+| **FR-1.1** | Operator first selects a Customer (Meanwell or Martindale), which scopes the Station and Model dropdowns to that customer's own production flow and model lineup. Operator then selects station, period (P-1 to P-6, or Overtime), and model, and enters Target output, Actual output, PAX (people on the station), Defects | P0 |
 | **FR-1.2** | Model auto-fills based on the day's order plan, with manual override | P1 |
 | **FR-1.3** | Submit writes one row of data to the main table | P0 |
 | **FR-1.4** | Form works on any computer or mobile browser without app installation | P0 |
@@ -112,6 +112,7 @@ Approximate scale: ~8 stations, 4 supervisors, and a few rotating line leads per
 | **FR-3.2** | Admin sets the daily plan: which model each station runs, with targets | P2 |
 | **FR-3.3** | Admin can configure which stations are active for each model via `model_station_config` (model_id, station_id, active). Stations that are inactive for a given model are skipped in that model's pipeline view. | P0 |
 | **FR-3.4** | Edit History — a read-only Admin page listing every edit recorded under FR-1.6, filterable by the date the edit was made, sorted newest first. Shows the entry context (date/period/station/model), who made the edit, and the previous vs. new value for each field. | P0 |
+| **FR-3.5** | Admin can create, edit, and deactivate Customers (`customers` table). Each station and model belongs to exactly one customer — the factory runs fully independent production flows per customer (currently Meanwell and Martindale), each with its own model lineup and its own assembly-step sequence. Station sequence numbers are scoped per customer, not global (Meanwell and Martindale can each have a station numbered `1`). Extending the Stations/Models admin CRUD screens (FR-3.1) with a Customer selector, and the `model_station_config` admin UI (FR-3.3) to only allow pairing a model with stations of the same customer, lands with the M4 admin CRUD milestone — see `YTC_implementation_plan.md` Milestone 4. | P0 |
 
 ## **5.4 Admin operational (Access: Admin only)**
 
@@ -152,7 +153,16 @@ Stations represent sequential steps in the manufacturing process, not independen
 * **Multiple rows per (date, period, station, model) are allowed.** There is no unique DB constraint on that combination — models can change mid-period, producing multiple rows for the same station+period.
 * The server checks for duplicates before writing: if a (date, period, station_id, model_id) row already exists, it warns the user ("An entry already exists for this combination — submit anyway?") and only writes on confirmation.
 
-# **5.9 Final data model**
+# **5.9 Customer-scoped production flows**
+
+* The factory runs fully separate production flows for different customers (currently **Meanwell** and **Martindale**). Each customer has its own model lineup and its own assembly-step sequence — a model's stations for one customer have no relationship to another customer's stations.
+* A `customers` table (id, name, active) is the source of truth. Every `stations` row and every `models` row belongs to exactly one customer via a `customer_id` foreign key — a model or station is never shared across customers.
+* `stations.sequence` (see 5.7) is scoped **per customer**, not global: two different customers can each have a station numbered `1`, since they represent independent flows. Uniqueness is enforced as `UNIQUE (customer_id, sequence)`.
+* `model_station_config` (see 5.7) continues to link a model to the stations it flows through, with the added invariant that a model can only be paired with a station belonging to the same customer.
+* On the entry form (FR-1.1), selecting a Customer filters the Station and Model dropdowns to that customer's own reference data, so a Line Lead can never accidentally log production against the wrong flow.
+* Real production data collected so far is entirely Meanwell; Martindale is a newly onboarded customer with its own stations/models to be configured via the Admin CRUD screens (FR-3.5).
+
+# **5.10 Final data model**
 
 ```
 orders              order_lines           leads
@@ -163,12 +173,13 @@ order_date          model_id → models     password_hash
 due_date            quantity              active
 active              active
 
-stations            models                model_station_config
-────────            ──────                ────────────────────
-id                  id                    model_id → models
-name                name                  station_id → stations
-sequence            active                active
-active
+customers           stations                   models                     model_station_config
+─────────           ────────                   ──────                     ────────────────────
+id                  id                         id                         model_id → models
+name                name                       name                       station_id → stations
+active              sequence                   customer_id → customers   active
+                    active
+                    customer_id → customers
 
 period_log                    period_log_edits
 ──────────                    ────────────────

@@ -42,6 +42,7 @@ Tasks can run in parallel after **M1 and M2 are complete**.
 ```
 ├── supabase/
 │   ├── migrations/20260621000000_initial_schema.sql   🔵 Full schema + RLS
+│   ├── migrations/<timestamp>_customer_scoping.sql     🔵 customers table + customer_id on stations/models
 │   └── seed.sql                                        🔵 Dev seed data
 ├── types/
 │   └── database.ts                                     🔵 Supabase-generated types
@@ -74,6 +75,7 @@ Tasks can run in parallel after **M1 and M2 are complete**.
 │   │   └── progress/page.tsx                           🟢 Model progress page
 │   └── admin/
 │       ├── layout.tsx                                  🟢 Auth guard layout
+│       ├── customers/page.tsx                          🟢 Customers CRUD
 │       ├── stations/page.tsx                           🟢 Stations CRUD
 │       ├── models/page.tsx                             🟢 Models CRUD
 │       ├── orders/page.tsx                             🟢 Orders CRUD
@@ -1201,9 +1203,94 @@ git commit -m "feat: edit history admin page (T3.4)"
 
 ---
 
+### Task 3.5 🔵 Anyka: Customer-scoped stations & models
+
+Meanwell and Martindale run fully independent production flows — separate model lineups, separate assembly-step sequences. This task introduces a `customers` table, scopes `stations`/`models` to it, and adds a Customer selector to the entry form that filters Station/Model to the selected customer. Real production data collected so far is entirely Meanwell. Extending the admin CRUD screens with a Customer selector is deferred to Milestone 4 (see note at the top of that milestone) — this task only covers schema + entry form.
+
+**Files:**
+- Create: `supabase/migrations/<timestamp>_customer_scoping.sql`
+- Modify: `supabase/seed.sql` — assign existing seed data to Meanwell, add sample Martindale rows
+- Modify: `types/database.ts` — regenerate after migration
+- Modify: `app/entry/page.tsx` — fetch `customers`, include `customer_id` on station/model queries
+- Modify: `components/entry/EntryForm.tsx` — Customer radio group, filtered dropdowns
+- Modify: `actions/entry.ts` — `submitEntry` validates station/model share a customer
+
+- [x] **Create the migration**
+
+```bash
+npx supabase migration new customer_scoping
+```
+
+```sql
+CREATE TABLE customers (
+  id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name   TEXT NOT NULL UNIQUE,
+  active BOOLEAN NOT NULL DEFAULT true
+);
+
+ALTER TABLE stations ADD COLUMN customer_id UUID REFERENCES customers(id);
+ALTER TABLE models   ADD COLUMN customer_id UUID REFERENCES customers(id);
+
+INSERT INTO customers (name) VALUES ('Meanwell'), ('Martindale');
+
+UPDATE stations SET customer_id = (SELECT id FROM customers WHERE name = 'Meanwell');
+UPDATE models   SET customer_id = (SELECT id FROM customers WHERE name = 'Meanwell');
+
+ALTER TABLE stations ALTER COLUMN customer_id SET NOT NULL;
+ALTER TABLE models   ALTER COLUMN customer_id SET NOT NULL;
+
+ALTER TABLE stations ADD CONSTRAINT stations_customer_sequence_unique UNIQUE (customer_id, sequence);
+
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "customers_select" ON customers FOR SELECT USING (true);
+CREATE POLICY "customers_modify" ON customers FOR ALL    USING (get_user_role() IN ('supervisor','admin'));
+```
+
+- [x] **Push migration and regenerate types**
+
+```bash
+npx supabase db push
+npx supabase gen types typescript --linked > types/database.ts
+```
+
+- [x] **Update `supabase/seed.sql`** — assign existing seed stations/models to Meanwell, and add a small set of sample Martindale stations/models so the toggle is testable end-to-end in dev rather than switching to an empty second option.
+
+- [x] **Modify `app/entry/page.tsx`** — fetch `customers` (active, ordered by name) alongside stations/models/leads; include `customer_id` in the stations/models `select()`.
+
+- [x] **Modify `components/entry/EntryForm.tsx`**
+  - `Station`/`Model` local types gain `customer_id: string`
+  - `FormState` gains `customerId: string`, defaulted to the Meanwell customer's id (`emptyForm` takes `customers` and picks the Meanwell row) — preserves current behavior for existing operators
+  - New Customer radio group rendered as the first field, above Date/Period
+  - Station and Model option lists derived via `useMemo`, filtered to `customer_id === form.customerId`
+  - Changing the customer radio resets `stationId` and `modelId` to `''`
+
+- [x] **Modify `actions/entry.ts` → `submitEntry`** — after auth, before the duplicate check, fetch the submitted `stationId`/`modelId` rows and verify their `customer_id` values match each other; return `{ status: 'error', message: '...' }` if they don't. This is a trust-boundary check (CLAUDE.md implementation standards) — the UI filter alone doesn't protect against a stale or crafted client payload.
+
+- [x] **Write unit tests** in `__tests__/entry-actions.test.ts`:
+  - `submitEntry` rejects a station/model pair from different customers
+  - `submitEntry` succeeds when station/model share a customer
+
+- [ ] **Manually test**
+
+1. Load `/entry` — confirm Meanwell is selected by default and today's Meanwell stations/models appear unchanged from before this task
+2. Switch to Martindale — confirm Station/Model dropdowns show only the sample Martindale rows, and the previously selected station/model are cleared
+3. Submit an entry as Martindale — confirm it writes correctly and `customer_id` isn't needed on `period_log` (derivable via station/model)
+4. Switch back to Meanwell mid-form — confirm selection resets again
+
+- [ ] **Commit**
+
+```bash
+git add supabase/ types/database.ts app/entry/page.tsx components/entry/EntryForm.tsx actions/entry.ts __tests__/entry-actions.test.ts
+git commit -m "feat: customer-scoped stations and models (T3.5)"
+```
+
+---
+
 ## Milestone 4: Admin CRUD 🔵 Anyka (actions) + 🟢 Ryo (UI)
 
 *These tasks can run in parallel after M2 is complete.*
+
+> **Customer scoping (T3.5) lands first:** by the time this milestone starts, `stations` and `models` already carry a required `customer_id` (see Milestone 3, Task 3.5). The `upsertStation`/`upsertModel` actions and their admin pages below include the Customer field from the start — there's no separate follow-up task for it.
 
 ---
 
@@ -1221,6 +1308,23 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { hashPassword } from '@/lib/auth/lead-auth'
 import { revalidatePath } from 'next/cache'
 
+// ── Customers ─────────────────────────────────────────────────────────────────
+
+export async function upsertCustomer(data: {
+  id?: string
+  name: string
+  active: boolean
+}) {
+  await requireRole('supervisor')
+  const supabase = createAdminClient()
+  if (data.id) {
+    await supabase.from('customers').update({ name: data.name, active: data.active }).eq('id', data.id)
+  } else {
+    await supabase.from('customers').insert({ name: data.name, active: data.active })
+  }
+  revalidatePath('/admin/customers')
+}
+
 // ── Stations ──────────────────────────────────────────────────────────────────
 
 export async function upsertStation(data: {
@@ -1228,15 +1332,17 @@ export async function upsertStation(data: {
   name: string
   sequence: number
   active: boolean
+  customerId: string
 }) {
   await requireRole('supervisor')
   const supabase = createAdminClient()
   if (data.id) {
     await supabase.from('stations')
-      .update({ name: data.name, sequence: data.sequence, active: data.active })
+      .update({ name: data.name, sequence: data.sequence, active: data.active, customer_id: data.customerId })
       .eq('id', data.id)
   } else {
-    await supabase.from('stations').insert({ name: data.name, sequence: data.sequence, active: data.active })
+    await supabase.from('stations')
+      .insert({ name: data.name, sequence: data.sequence, active: data.active, customer_id: data.customerId })
   }
   revalidatePath('/admin/stations')
 }
@@ -1247,18 +1353,27 @@ export async function upsertModel(data: {
   id?: string
   name: string
   active: boolean
-  stationIds: string[]  // stations this model flows through
+  customerId: string
+  stationIds: string[]  // stations this model flows through — must all belong to customerId
 }) {
   await requireRole('supervisor')
   const supabase = createAdminClient()
   let modelId = data.id
 
   if (data.id) {
-    await supabase.from('models').update({ name: data.name, active: data.active }).eq('id', data.id)
+    await supabase.from('models')
+      .update({ name: data.name, active: data.active, customer_id: data.customerId })
+      .eq('id', data.id)
   } else {
     const { data: inserted } = await supabase.from('models')
-      .insert({ name: data.name, active: data.active }).select('id').single()
+      .insert({ name: data.name, active: data.active, customer_id: data.customerId }).select('id').single()
     modelId = inserted!.id
+  }
+
+  // Enforce the model/station customer invariant (see tech spec §4) before writing config
+  const { data: stations } = await supabase.from('stations').select('id, customer_id').in('id', data.stationIds)
+  if (stations?.some(s => s.customer_id !== data.customerId)) {
+    throw new Error('All selected stations must belong to the same customer as the model')
   }
 
   // Deactivate all existing config for this model, then activate selected stations
@@ -1357,7 +1472,7 @@ export async function removeUserRole(userId: string) {
 
 ```bash
 git add actions/admin.ts
-git commit -m "feat: admin CRUD server actions for all reference tables"
+git commit -m "feat: admin CRUD server actions for customers and all reference tables"
 ```
 
 ---
@@ -1367,7 +1482,7 @@ git commit -m "feat: admin CRUD server actions for all reference tables"
 **Files:**
 - Create: `app/admin/layout.tsx`, `components/admin/CrudTable.tsx`
 
-- [ ] **Create `app/admin/layout.tsx`** — server component that calls `requireRole('supervisor')` and wraps with a nav sidebar linking to `/admin/stations`, `/admin/models`, `/admin/orders`, `/admin/leads`, and (admin only) `/admin/accounts`.
+- [ ] **Create `app/admin/layout.tsx`** — server component that calls `requireRole('supervisor')` and wraps with a nav sidebar linking to `/admin/customers`, `/admin/stations`, `/admin/models`, `/admin/orders`, `/admin/leads`, and (admin only) `/admin/accounts`.
 
 - [ ] **Create `components/admin/CrudTable.tsx`** — a generic, reusable table component. Props:
 
@@ -1391,10 +1506,10 @@ git commit -m "feat: admin layout and reusable CrudTable component"
 
 ---
 
-### Task 4.3 🟢 Ryo: Stations, Models, Orders, Leads admin pages
+### Task 4.3 🟢 Ryo: Customers, Stations, Models, Orders, Leads admin pages
 
 **Files:**
-- Create: `app/admin/stations/page.tsx`, `app/admin/models/page.tsx`, `app/admin/orders/page.tsx`, `app/admin/leads/page.tsx`, `app/admin/accounts/page.tsx`
+- Create: `app/admin/customers/page.tsx`, `app/admin/stations/page.tsx`, `app/admin/models/page.tsx`, `app/admin/orders/page.tsx`, `app/admin/leads/page.tsx`, `app/admin/accounts/page.tsx`
 
 Each page follows the same pattern:
 1. Server component fetches current data
@@ -1408,9 +1523,11 @@ Each page follows the same pattern:
 >
 > - **order_lines soft-delete pattern:** Each order edit deactivates the old lines and inserts new ones. Inactive rows are the audit trail and accumulate. Any query that reads `order_lines` **must** filter `WHERE active = true` / `.eq('active', true)` — forgetting this filter double-counts quantities. This applies to the orders page and to any `order_lines` query in `lib/db/dashboard.ts`.
 
-- [ ] **Create `app/admin/stations/page.tsx`** — fetches all stations ordered by sequence; form fields: Name (text), Sequence (number), Active (checkbox).
+- [ ] **Create `app/admin/customers/page.tsx`** — fetches all customers; form fields: Name (text), Active (checkbox).
 
-- [ ] **Create `app/admin/models/page.tsx`** — fetches all models; form fields: Name (text), Active (checkbox), Station Config (multi-select checkboxes from active stations — maps to `stationIds`).
+- [ ] **Create `app/admin/stations/page.tsx`** — fetches all stations ordered by customer then sequence; form fields: Customer (dropdown), Name (text), Sequence (number, unique within the selected customer), Active (checkbox).
+
+- [ ] **Create `app/admin/models/page.tsx`** — fetches all models; form fields: Customer (dropdown), Name (text), Active (checkbox), Station Config (multi-select checkboxes — options limited to stations belonging to the selected Customer — maps to `stationIds`). Changing the Customer dropdown after stations are already selected clears the Station Config selection, since the old options no longer apply.
 
 - [ ] **Create `app/admin/orders/page.tsx`** — fetches orders with their line items. Form fields: Order Number, Order Date, Due Date, Active, and a dynamic list of line items (Model dropdown + Quantity input, with Add/Remove line).
 
@@ -1420,17 +1537,19 @@ Each page follows the same pattern:
 
 - [ ] **Manually verify all admin pages**
 
-1. Create a station → appears in entry form dropdown
-2. Deactivate a station → disappears from entry form dropdown; historical logs still intact
-3. Create a lead with password → can submit entry form with that lead
-4. Reset a lead's password → old password no longer works, new one does
-5. Create an order with two line items → appears in model progress view
+1. Create a customer → selectable on the Station and Model forms
+2. Create a station under that customer → appears in entry form dropdown only when that customer is selected
+3. Attempt to add a station from a different customer to a model's Station Config → rejected
+4. Deactivate a station → disappears from entry form dropdown; historical logs still intact
+5. Create a lead with password → can submit entry form with that lead
+6. Reset a lead's password → old password no longer works, new one does
+7. Create an order with two line items → appears in model progress view
 
 - [ ] **Commit**
 
 ```bash
 git add app/admin/
-git commit -m "feat: admin CRUD pages for stations, models, orders, leads, accounts"
+git commit -m "feat: admin CRUD pages for customers, stations, models, orders, leads, accounts"
 ```
 
 ---
