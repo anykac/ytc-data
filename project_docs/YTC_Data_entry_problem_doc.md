@@ -102,6 +102,7 @@ Approximate scale: ~8 stations, 4 supervisors, and a few rotating line leads per
 | **FR-2.6** | Filter dashboard views by order and model. When multiple models run simultaneously across the same stations, the Daily Summary and Pipeline views aggregate all models per station, making attainment figures misleading. An order selector scopes the view to the models belonging to that order; a model selector within it lets supervisors drill down to a single model's station-by-station performance. Because `period_log` records production against a `model_id` (not an `order_id`), "filter by order" means "show only stations running models in this order" — production that happens to fulfil multiple overlapping orders for the same model cannot be separated at the log level. The Model Progress view already operates at the model level and does not require this filter. | P0 |
 | **FR-2.7** | Filter all views by date range, station, and shift | P1 |
 | **FR-2.8** | Export any view to CSV / Excel | P2 |
+| **FR-2.9** | Full Data Report — raw `period_log` entries (station/model/lead names resolved, not raw IDs) for a supervisor-selected date range, grouped by date and sorted by period then station sequence within each date. Entries with a prior edit are flagged. Supports CSV export of the currently loaded range. | P0 |
 
 ## **5.3 Supervisor operational (Access: Supervisor+)**
 
