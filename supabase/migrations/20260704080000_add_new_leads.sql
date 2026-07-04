@@ -1,0 +1,15 @@
+INSERT INTO leads (name, password_hash, active) VALUES
+  ('Milagros De Jesus', '$2b$10$7DQnJsq32ECyVaRbw5fN6u/joYEu7i0SfTuC8IiiuKixINWNSdgqm', true),
+  ('Rowena Clemente', '$2b$10$lz0wodUaPg0v7ayPT9oMK.rZ7.FGkR913/0VxenIk2vjDKcjJgSWm', true),
+  ('Nora Abogado', '$2b$10$t8Z1jUvd.rhapcmkUw75SOghKVHCyHMoZHMvGAbzKPDuD5mqDB0l2', true),
+  ('Faye Alba', '$2b$10$u5PZ/QFpFEeTmfIUct3C1On7skqZYkaz0AqjqUWj.24kALx7iPFbq', true),
+  ('Julieta Enolva', '$2b$10$5IL2DtXCRnmzrAgheOXO3uOJMey2A8YbjtJGwAdktA5yui9Y47ZMO', true),
+  ('Laura Aguiluz', '$2b$10$9kABSTXCRXxYwmnVggFI3uNExkjpFAW//R0XCOjgfyZ3ShlS9icNK', true),
+  ('Jane Alejandria', '$2b$10$prgpb5ZB4Kpn/4wOHV/BSuTFdfNWfGcfsTevYf0fd6FN.vYhqiyWy', true),
+  ('Leonora Quitay', '$2b$10$1ckyDKPSGVsgJILYwK81UuaSSiBF6lCJH1IrsGHpQU5q.0mv88hrS', true),
+  ('Mylin Gaspar', '$2b$10$naMQFskOm0V68ZyK0lowqu3Kkv4I3OZD5G9oP2ZTybH1k1whldhuO', true),
+  ('Dulce Amor', '$2b$10$NMCta5wJTmrnWji9BQt3zuO2vjHdqO8O2VFD1XO1eUhzEoRtfHIL2', true),
+  ('Eva Medina', '$2b$10$/X6jJWlewhr5JfH2aUMAjeUPtRxLQ4kAJk41jQa18YnoCiYXhDC96', true),
+  ('Teresa de Guzman', '$2b$10$naPK7yxvuuAJ1DwojqsXB.ii8Z6rRu5Ia7/AmNexNRrQJ.ZSN1h9q', true),
+  ('Rina Poligrates', '$2b$10$ueb.SP1WMGGlCn51SQVyN.pIoCLhz3wACRPqdDtC9ZiSZ84FLRT0y', true),
+  ('Minette Chan', '$2b$10$yLwH9l8zOVU7pSK3DGIhreo3LA.2sZPCzoxR176dHRgwY5duoyUiq', true);
