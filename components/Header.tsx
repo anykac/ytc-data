@@ -51,6 +51,7 @@ export default async function Header() {
           <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Daily Summary</Link>
           <Link href="/dashboard/pipeline" className="text-sm text-gray-600 hover:text-gray-900">Pipeline</Link>
           <Link href="/dashboard/progress" className="text-sm text-gray-600 hover:text-gray-900">Model Progress</Link>
+          <Link href="/dashboard/report" className="text-sm text-gray-600 hover:text-gray-900">Full Data Report</Link>
           <Link href="/admin" className="text-sm text-gray-600 hover:text-gray-900 ml-auto">Admin</Link>
         </nav>
       )}

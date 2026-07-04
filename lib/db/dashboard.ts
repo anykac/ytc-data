@@ -136,3 +136,72 @@ export async function getModelProgress(): Promise<ModelProgressRow[]> {
     }))
     .sort((a, b) => a.earliestDueDate.localeCompare(b.earliestDueDate))
 }
+
+export type FullDataReportRow = {
+  date: string
+  period: string
+  stationName: string
+  modelName: string
+  target: number
+  actual: number
+  pax: number
+  defects: number
+  submittedByName: string
+  createdAt: string
+  edited: boolean
+}
+
+export async function getFullDataReport(startDate: string, endDate: string): Promise<FullDataReportRow[]> {
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('period_log')
+    .select(`
+      id, date, period, target, actual, pax, defects, created_at,
+      stations!inner(name, sequence),
+      models!inner(name),
+      leads!inner(name)
+    `)
+    .gte('date', startDate)
+    .lte('date', endDate)
+
+  if (error) throw error
+  if (!data || data.length === 0) return []
+
+  const { data: edits, error: editsError } = await supabase
+    .from('period_log_edits')
+    .select('period_log_id')
+    .in('period_log_id', data.map((row) => row.id))
+
+  if (editsError) throw editsError
+  const editedIds = new Set((edits ?? []).map((e) => e.period_log_id))
+
+  return data
+    .map((row) => {
+      const station = row.stations as unknown as { name: string; sequence: number }
+      const model = row.models as unknown as { name: string }
+      const lead = row.leads as unknown as { name: string }
+      return {
+        stationSequence: station.sequence,
+        row: {
+          date: row.date,
+          period: row.period,
+          stationName: station.name,
+          modelName: model.name,
+          target: row.target,
+          actual: row.actual,
+          pax: row.pax,
+          defects: row.defects,
+          submittedByName: lead.name,
+          createdAt: row.created_at,
+          edited: editedIds.has(row.id),
+        },
+      }
+    })
+    .sort((a, b) => {
+      if (a.row.date !== b.row.date) return a.row.date.localeCompare(b.row.date)
+      if (a.row.period !== b.row.period) return a.row.period.localeCompare(b.row.period)
+      return a.stationSequence - b.stationSequence
+    })
+    .map(({ row }) => row)
+}
