@@ -1895,7 +1895,7 @@ git commit -m "feat: full data report tab with date-range CSV export (FR-2.9)"
 **Files:**
 - Create: `app/api/ping/route.ts`, `app/layout.tsx`, `app/page.tsx`
 
-- [ ] **Create `app/api/ping/route.ts`**
+- [x] **Create `app/api/ping/route.ts`**
 
 ```typescript
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -1909,7 +1909,7 @@ export async function GET() {
 }
 ```
 
-- [ ] **Create `app/layout.tsx`**
+- [x] **Create `app/layout.tsx`**
 
 ```typescript
 import type { Metadata } from 'next'
@@ -1929,7 +1929,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-- [ ] **Create `app/page.tsx`** — redirect based on session
+- [x] **Create `app/page.tsx`** — redirect based on session
 
 ```typescript
 import { createClient } from '@/lib/supabase/server'
@@ -1944,7 +1944,7 @@ export default async function RootPage() {
 }
 ```
 
-- [ ] **Test the ping endpoint**
+- [x] **Test the ping endpoint**
 
 ```bash
 curl http://localhost:3000/api/ping
@@ -1952,7 +1952,7 @@ curl http://localhost:3000/api/ping
 
 Expected: `{"ok":true,"ts":"2026-..."}`
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add app/api/ping/ app/layout.tsx app/page.tsx
