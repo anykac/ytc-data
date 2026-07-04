@@ -160,18 +160,19 @@ Stations represent sequential steps in the manufacturing process, not independen
 * `stations.sequence` (see 5.7) is scoped **per customer**, not global: two different customers can each have a station numbered `1`, since they represent independent flows. Uniqueness is enforced as `UNIQUE (customer_id, sequence)`.
 * `model_station_config` (see 5.7) continues to link a model to the stations it flows through, with the added invariant that a model can only be paired with a station belonging to the same customer.
 * On the entry form (FR-1.1), selecting a Customer filters the Station and Model dropdowns to that customer's own reference data, so a Line Lead can never accidentally log production against the wrong flow.
-* Real production data collected so far is entirely Meanwell; Martindale is a newly onboarded customer with its own stations/models to be configured via the Admin CRUD screens (FR-3.5).
+* Real production data collected so far is entirely Meanwell; Martindale is a newly onboarded customer with its own stations/models, configurable via the Admin CRUD screens (FR-3.5) using the Customer selector added there as part of this work.
 
 # **5.10 Final data model**
 
 ```
-orders              order_lines           leads
-──────              ───────────           ─────
-id                  id                    id
-order_number        order_id → orders     name
-order_date          model_id → models     password_hash
-due_date            quantity              active
-active              active
+orders                     order_lines           leads
+──────                     ───────────           ─────
+id                         id                    id
+order_number               order_id → orders     name
+order_date                 model_id → models     password_hash
+due_date                   quantity              active
+active                     active
+customer_id → customers
 
 customers           stations                   models                     model_station_config
 ─────────           ────────                   ──────                     ────────────────────

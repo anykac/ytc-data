@@ -94,8 +94,9 @@ models   (id, name, active BOOL, customer_id → customers)
 model_station_config (model_id, station_id, active BOOL)
   PRIMARY KEY (model_id, station_id)
 
--- Orders & line items
-orders      (id, order_number TEXT, order_date DATE, due_date DATE, active BOOL)
+-- Orders & line items — an order belongs to exactly one customer (immutable after creation);
+-- line items must reference models of that same customer (app-enforced, not a DB constraint)
+orders      (id, order_number TEXT, order_date DATE, due_date DATE, active BOOL, customer_id → customers)
 order_lines (id, order_id, model_id, quantity INT, active BOOL)
 
 -- Line lead credentials
@@ -132,7 +133,7 @@ period_log_edits (
 - **No unique constraint on `(date, period, station_id, model_id)`.** Models can change mid-period, producing multiple rows for the same station+period. The server warns on duplicates but allows after user confirmation.
 - **`defects` cannot exceed `actual`.** A defect count greater than the actual output is physically impossible. Enforced at three layers: HTML `max` attribute on the client (caps the Defects input at the current Actual value), server action validation (rejects before any DB write), and a DB-level `CHECK (defects <= actual)` constraint on `period_log`.
 - **Station sequencing.** `stations.sequence` defines the linear production flow. Output of station N = available input to station N+1 (1:1 unit ratio).
-- **Customer scoping.** Every `stations` and `models` row belongs to exactly one customer (`customer_id`). Meanwell and Martindale run fully independent flows with their own model lineups and assembly-step sequences — `stations.sequence` is unique per customer, not globally, so both customers can have a station numbered `1`. The entry form's Customer selector filters Station/Model dropdowns accordingly (see 6.1). Real production data collected to date is entirely Meanwell; Martindale's stations/models are configured fresh via Admin CRUD (FR-3.5).
+- **Customer scoping.** Every `stations`, `models`, and `orders` row belongs to exactly one customer (`customer_id`). Meanwell and Martindale run fully independent flows with their own model lineups, assembly-step sequences, and orders — `stations.sequence` is unique per customer, not globally, so both customers can have a station numbered `1`. The entry form's Customer selector filters Station/Model dropdowns accordingly (see 6.1); the admin Stations/Models/Orders screens filter by the same Customer tabs, and an order's line items are restricted to models of its own customer. Real production data collected to date is entirely Meanwell; Martindale's stations/models/orders are configured fresh via Admin CRUD (FR-3.5).
 
 ---
 
@@ -234,7 +235,7 @@ Five management tables (create / edit / deactivate):
 - **Customers** — name, active
 - **Stations** — name, sequence (scoped per customer), active, customer
 - **Models** — name, active, customer, station config (model_station_config, restricted to stations of the same customer)
-- **Orders** — order number, order date, due date, line items (model + quantity)
+- **Orders** — order number, order date, due date, customer (scoped, immutable after creation — line items must be models of the same customer), line items (model + quantity)
 - **Leads** — name, set/reset password, active
 
 **Edit History** (read-only audit log, distinct from the four CRUD tables above)
@@ -322,7 +323,7 @@ Line lead writes bypass RLS using the Supabase **service role key** (server-side
 - **Full Data Report tab** (FR-2.9) — raw `period_log` entries for a supervisor-selected date range, grouped by date, with edited-entry flagging and CSV export of the loaded range. Pulled forward from the original P2 CSV-export item because raw-entry visibility/export is needed before the rest of P2. Distinct from FR-2.8 below, which covers exporting the aggregated Daily Summary / Pipeline / Model Progress views themselves.
 - **Order-Model Step Tracker** — per-step progress table and chart for a specific order+model combination, accessible by clicking a model row in the Model Progress view. Shows cumulative output, active inputs (WIP), and order attainment % per station; chart displays cumulative output (line), per-period output (bar), and active inputs (bar) for the selected step.
 - Stations / models / orders / leads CRUD (FR-3.1, FR-3.3)
-- **Customer-scoped stations & models** (FR-1.1, FR-3.5) — `customers` table; `customer_id` on `stations`/`models`; per-customer station sequence; Customer selector on the entry form filtering Station/Model dropdowns, with server-side validation that the submitted station and model share a customer. Schema + entry form land in M3 (T3.5); the Customers admin CRUD page and Customer selector on the Stations/Models admin screens land in M4.
+- **Customer-scoped stations & models** (FR-1.1, FR-3.5) — `customers` table; `customer_id` on `stations`/`models`/`orders`; per-customer station sequence; Customer selector on the entry form filtering Station/Model dropdowns, with server-side validation that the submitted station and model share a customer. All landed in M3 (T3.5), including the Customer selector on the Stations/Models/Orders admin screens — M4 had already shipped without customer awareness by the time T3.5 was implemented, so that admin work was pulled forward rather than left as a separate M4 follow-up. `orders` also gained a `customer_id` (not part of the original design) once manual testing showed orders need the same per-customer scoping, since an order's line items are all models from a single customer. A standalone Customers CRUD page (create/rename/deactivate customer records) was not built; the two customers are seeded directly.
 - **Edit History admin page** (FR-3.4) — read-only log of every edit recorded under FR-1.6, date-range filtered by when the edit happened, newest first, with entry context, editor, and prev/new values per field
 - RBAC setup — Line Lead, Supervisor, Admin (FR-4.1)
 - Google OAuth for Supervisor/Admin (FR-4.2)

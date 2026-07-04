@@ -30,6 +30,17 @@ export async function submitEntry(data: EntryFormData): Promise<EntryResult> {
 
   const supabase = createAdminClient()
 
+  const { data: station, error: stationError } = await supabase
+    .from('stations').select('customer_id').eq('id', data.stationId).single()
+  if (stationError || !station) return { status: 'error', message: 'Station not found' }
+
+  const { data: model, error: modelError } = await supabase
+    .from('models').select('customer_id').eq('id', data.modelId).single()
+  if (modelError || !model) return { status: 'error', message: 'Model not found' }
+
+  if (station.customer_id !== model.customer_id)
+    return { status: 'error', message: 'Station and model belong to different customers.' }
+
   if (!data.confirmDuplicate) {
     const { data: existing, error: dupError } = await supabase
       .from('period_log')

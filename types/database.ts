@@ -39,6 +39,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      customers: {
+        Row: {
+          active: boolean
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           active: boolean
@@ -96,20 +114,31 @@ export type Database = {
       models: {
         Row: {
           active: boolean
+          customer_id: string
           id: string
           name: string
         }
         Insert: {
           active?: boolean
+          customer_id: string
           id?: string
           name: string
         }
         Update: {
           active?: boolean
+          customer_id?: string
           id?: string
           name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "models_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       order_lines: {
         Row: {
@@ -153,6 +182,7 @@ export type Database = {
       orders: {
         Row: {
           active: boolean
+          customer_id: string
           due_date: string
           id: string
           order_date: string
@@ -160,6 +190,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          customer_id: string
           due_date: string
           id?: string
           order_date: string
@@ -167,12 +198,21 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          customer_id?: string
           due_date?: string
           id?: string
           order_date?: string
           order_number?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       period_log: {
         Row: {
@@ -301,23 +341,34 @@ export type Database = {
       stations: {
         Row: {
           active: boolean
+          customer_id: string
           id: string
           name: string
           sequence: number
         }
         Insert: {
           active?: boolean
+          customer_id: string
           id?: string
           name: string
           sequence: number
         }
         Update: {
           active?: boolean
+          customer_id?: string
           id?: string
           name?: string
           sequence?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "stations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

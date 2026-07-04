@@ -1,10 +1,10 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useTransition, useState, useMemo } from 'react'
 import { submitEntry, type EntryResult } from '@/actions/entry'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import EditEntryDrawer from '@/components/entry/EditEntryDrawer'
-import { PERIOD_ORDER } from '@/lib/constants'
+import { PERIOD_ORDER, DEFAULT_CUSTOMER_NAME } from '@/lib/constants'
 
 const INPUT_CLS = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900'
 const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
@@ -13,11 +13,13 @@ function selectCls(value: string) {
   return `${BASE_SELECT} ${value ? 'text-gray-900' : 'text-gray-400'}`
 }
 
-type Station = { id: string; name: string; sequence: number }
-type Model   = { id: string; name: string }
+type Customer = { id: string; name: string }
+type Station = { id: string; name: string; sequence: number; customer_id: string }
+type Model   = { id: string; name: string; customer_id: string }
 type Lead    = { id: string; name: string }
 
 type Props = {
+  customers: Customer[]
   stations: Station[]
   models: Model[]
   leads: Lead[]
@@ -26,6 +28,7 @@ type Props = {
 type FormState = {
   date: string
   period: string
+  customerId: string
   stationId: string
   modelId: string
   target: string
@@ -40,10 +43,11 @@ function today() {
   return new Date().toISOString().split('T')[0]
 }
 
-function emptyForm(leads: Lead[]): FormState {
+function emptyForm(leads: Lead[], customers: Customer[]): FormState {
   return {
     date: today(),
     period: 'P1',
+    customerId: customers.find(c => c.name === DEFAULT_CUSTOMER_NAME)?.id ?? customers[0]?.id ?? '',
     stationId: '',
     modelId: '',
     target: '',
@@ -55,8 +59,8 @@ function emptyForm(leads: Lead[]): FormState {
   }
 }
 
-export default function EntryForm({ stations, models, leads }: Props) {
-  const [form, setForm] = useState<FormState>(() => emptyForm(leads))
+export default function EntryForm({ customers, stations, models, leads }: Props) {
+  const [form, setForm] = useState<FormState>(() => emptyForm(leads, customers))
   const [result, setResult] = useState<EntryResult | null>(null)
   const [pendingPayload, setPendingPayload] = useState<ReturnType<typeof buildPayload> | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -64,13 +68,27 @@ export default function EntryForm({ stations, models, leads }: Props) {
 
   const showConfirm = pendingPayload !== null
 
+  const filteredStations = useMemo(
+    () => stations.filter(s => s.customer_id === form.customerId),
+    [stations, form.customerId]
+  )
+  const filteredModels = useMemo(
+    () => models.filter(m => m.customer_id === form.customerId),
+    [models, form.customerId]
+  )
+
   function set(field: keyof FormState, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
     setResult(null)
   }
 
+  function selectCustomer(customerId: string) {
+    setForm(prev => ({ ...prev, customerId, stationId: '', modelId: '' }))
+    setResult(null)
+  }
+
   function resetDataFields() {
-    setForm(prev => ({ ...emptyForm(leads), leadName: prev.leadName }))
+    setForm(prev => ({ ...emptyForm(leads, customers), leadName: prev.leadName }))
   }
 
   function buildPayload(confirmDuplicate = false) {
@@ -129,6 +147,24 @@ export default function EntryForm({ stations, models, leads }: Props) {
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-5 max-w-lg mx-auto">
         <h1 className="text-xl font-semibold text-gray-900">Log Production Entry</h1>
 
+        {/* Customer */}
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700">Customer</label>
+          <div className="flex gap-4">
+            {customers.map(c => (
+              <label key={c.id} className="flex items-center gap-2 text-sm text-gray-900">
+                <input
+                  type="radio"
+                  name="customer"
+                  checked={form.customerId === c.id}
+                  onChange={() => selectCustomer(c.id)}
+                />
+                {c.name}
+              </label>
+            ))}
+          </div>
+        </div>
+
         {/* Date + Period */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
@@ -167,7 +203,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               className={selectCls(form.stationId)}
             >
               <option value="">Select station</option>
-              {stations.map(s => (
+              {filteredStations.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
@@ -181,7 +217,7 @@ export default function EntryForm({ stations, models, leads }: Props) {
               className={selectCls(form.modelId)}
             >
               <option value="">Select model</option>
-              {models.map(m => (
+              {filteredModels.map(m => (
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>

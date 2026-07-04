@@ -1,35 +1,57 @@
 'use client'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { upsertOrder } from '@/actions/admin'
 import CrudTable from '@/components/admin/CrudTable'
+import CustomerTabs from '@/components/admin/CustomerTabs'
+import { DEFAULT_CUSTOMER_NAME } from '@/lib/constants'
 
-type Order = { id: string; order_number: string; order_date: string; due_date: string; active: boolean }
-type Model = { id: string; name: string }
+type Customer = { id: string; name: string }
+type Order = { id: string; order_number: string; order_date: string; due_date: string; active: boolean; customer_id: string }
+type Model = { id: string; name: string; customer_id: string }
 type Line = { order_id: string; model_id: string; quantity: number; models: { name: string } }
 type FormLine = { modelId: string; quantity: number }
-type Form = { id?: string; orderNumber: string; orderDate: string; dueDate: string; active: boolean; lines: FormLine[] }
+type Form = { id?: string; orderNumber: string; orderDate: string; dueDate: string; active: boolean; customerId: string; lines: FormLine[] }
 
-const blank = (): Form => ({
-  orderNumber: '', orderDate: new Date().toISOString().split('T')[0],
-  dueDate: new Date().toISOString().split('T')[0], active: true, lines: [{ modelId: '', quantity: 0 }],
-})
-
-export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]; models: Model[]; lines: Line[] }) {
+export default function OrdersAdmin({ orders, models, lines, customers }: { orders: Order[]; models: Model[]; lines: Line[]; customers: Customer[] }) {
+  const [selectedCustomerId, setSelectedCustomerId] = useState(
+    () => customers.find((c) => c.name === DEFAULT_CUSTOMER_NAME)?.id ?? customers[0]?.id ?? ''
+  )
   const [form, setForm] = useState<Form | null>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const blank = (): Form => ({
+    orderNumber: '', orderDate: new Date().toISOString().split('T')[0],
+    dueDate: new Date().toISOString().split('T')[0], active: true, customerId: selectedCustomerId,
+    lines: [{ modelId: '', quantity: 0 }],
+  })
+
+  const ordersForCustomer = useMemo(
+    () => orders.filter((o) => o.customer_id === selectedCustomerId),
+    [orders, selectedCustomerId]
+  )
+  const modelsForFormCustomer = useMemo(
+    () => (form ? models.filter((m) => m.customer_id === form.customerId) : []),
+    [models, form]
+  )
+
+  function selectCustomer(customerId: string) {
+    setSelectedCustomerId(customerId)
+    setForm(null)
+    setError('')
+  }
 
   function linesFor(orderId: string): FormLine[] {
     return lines.filter((l) => l.order_id === orderId).map((l) => ({ modelId: l.model_id, quantity: l.quantity }))
   }
 
   function edit(o: Order) {
-    setForm({ id: o.id, orderNumber: o.order_number, orderDate: o.order_date, dueDate: o.due_date, active: o.active, lines: linesFor(o.id) })
+    setForm({ id: o.id, orderNumber: o.order_number, orderDate: o.order_date, dueDate: o.due_date, active: o.active, customerId: o.customer_id, lines: linesFor(o.id) })
     setError('')
   }
 
   function toggleActive(o: Order) {
-    submit({ id: o.id, orderNumber: o.order_number, orderDate: o.order_date, dueDate: o.due_date, active: !o.active, lines: linesFor(o.id) })
+    submit({ id: o.id, orderNumber: o.order_number, orderDate: o.order_date, dueDate: o.due_date, active: !o.active, customerId: o.customer_id, lines: linesFor(o.id) })
   }
 
   function setLine(i: number, field: keyof FormLine, value: string | number) {
@@ -50,7 +72,7 @@ export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]
     }
   }
 
-  const displayOrders = orders.map((o) => ({
+  const displayOrders = ordersForCustomer.map((o) => ({
     ...o,
     line_summary: lines.filter((l) => l.order_id === o.id).map((l) => `${l.models.name} ×${l.quantity}`).join(', ') || '—',
   }))
@@ -87,7 +109,7 @@ export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]
                   <select required value={line.modelId} onChange={(e) => setLine(i, 'modelId', e.target.value)}
                     className="border rounded px-2 py-1.5 text-sm flex-1 bg-white text-gray-900">
                     <option value="">Select model…</option>
-                    {models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    {modelsForFormCustomer.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                   <input required type="number" min={1} placeholder="Qty" value={line.quantity || ''}
                     onChange={(e) => setLine(i, 'quantity', parseInt(e.target.value) || 0)}
@@ -128,6 +150,7 @@ export default function OrdersAdmin({ orders, models, lines }: { orders: Order[]
             + New order
           </button>
         </div>
+        <CustomerTabs customers={customers} selectedId={selectedCustomerId} onSelect={selectCustomer} />
         <CrudTable
           columns={[
             { key: 'order_number', label: 'Order #' },

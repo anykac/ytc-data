@@ -1,36 +1,58 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { upsertModel } from '@/actions/admin'
 import CrudTable from '@/components/admin/CrudTable'
+import CustomerTabs from '@/components/admin/CustomerTabs'
+import { DEFAULT_CUSTOMER_NAME } from '@/lib/constants'
 
-type Model = { id: string; name: string; active: boolean }
-type Station = { id: string; name: string; sequence: number }
+type Customer = { id: string; name: string }
+type Model = { id: string; name: string; active: boolean; customer_id: string }
+type Station = { id: string; name: string; sequence: number; customer_id: string }
 type Config = { model_id: string; station_id: string }
-type Form = { id?: string; name: string; active: boolean; stationIds: string[] }
-const blank = (): Form => ({ name: '', active: true, stationIds: [] })
+type Form = { id?: string; name: string; active: boolean; stationIds: string[]; customerId: string }
 
 export default function ModelsAdmin({
-  models, stations, configs: configsProp,
-}: { models: Model[]; stations: Station[]; configs: Config[] }) {
+  models, stations, configs: configsProp, customers,
+}: { models: Model[]; stations: Station[]; configs: Config[]; customers: Customer[] }) {
+  const [selectedCustomerId, setSelectedCustomerId] = useState(
+    () => customers.find((c) => c.name === DEFAULT_CUSTOMER_NAME)?.id ?? customers[0]?.id ?? ''
+  )
   const [configs, setConfigs] = useState(configsProp)
   const [form, setForm] = useState<Form | null>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const blank = (): Form => ({ name: '', active: true, stationIds: [], customerId: selectedCustomerId })
+
+  const modelsForCustomer = useMemo(
+    () => models.filter((m) => m.customer_id === selectedCustomerId),
+    [models, selectedCustomerId]
+  )
+  const stationsForFormCustomer = useMemo(
+    () => (form ? stations.filter((s) => s.customer_id === form.customerId) : []),
+    [stations, form]
+  )
+
   // Sync when server re-renders with fresh config data after a save
   useEffect(() => { setConfigs(configsProp) }, [configsProp])
+
+  function selectCustomer(customerId: string) {
+    setSelectedCustomerId(customerId)
+    setForm(null)
+    setError('')
+  }
 
   function configFor(modelId: string) {
     return configs.filter((c) => c.model_id === modelId).map((c) => c.station_id)
   }
 
   function edit(m: Model) {
-    setForm({ id: m.id, name: m.name, active: m.active, stationIds: configFor(m.id) })
+    setForm({ id: m.id, name: m.name, active: m.active, stationIds: configFor(m.id), customerId: m.customer_id })
     setError('')
   }
 
   function toggleActive(m: Model) {
-    submit({ id: m.id, name: m.name, active: !m.active, stationIds: configFor(m.id) })
+    submit({ id: m.id, name: m.name, active: !m.active, stationIds: configFor(m.id), customerId: m.customer_id })
   }
 
   function toggleStation(stationId: string) {
@@ -44,7 +66,7 @@ export default function ModelsAdmin({
   async function submit(data: Form) {
     setSaving(true); setError('')
     try {
-      await upsertModel(data as Parameters<typeof upsertModel>[0])
+      await upsertModel(data)
       setForm(null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed')
@@ -68,7 +90,7 @@ export default function ModelsAdmin({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Stations this model flows through</label>
               <div className="space-y-1 max-h-48 overflow-y-auto border rounded p-2 bg-gray-50">
-                {stations.map((s) => (
+                {stationsForFormCustomer.map((s) => (
                   <label key={s.id} className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer hover:bg-white rounded px-1 py-0.5">
                     <input type="checkbox" checked={form.stationIds.includes(s.id)} onChange={() => toggleStation(s.id)} />
                     <span className="text-gray-400 text-xs w-5 shrink-0">{s.sequence}</span>
@@ -101,9 +123,10 @@ export default function ModelsAdmin({
             + New model
           </button>
         </div>
+        <CustomerTabs customers={customers} selectedId={selectedCustomerId} onSelect={selectCustomer} />
         <CrudTable
           columns={[{ key: 'name', label: 'Name' }, { key: 'active', label: 'Status' }]}
-          rows={models}
+          rows={modelsForCustomer}
           onEdit={edit}
           onToggleActive={toggleActive}
         />
