@@ -5,11 +5,12 @@ import StationsAdmin from './StationsAdmin'
 export default async function StationsPage() {
   await requireRole('admin')
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('stations')
-    .select('id, name, sequence, active')
-    .order('sequence')
+  const [{ data: customers, error: ce }, { data: stations, error }] = await Promise.all([
+    supabase.from('customers').select('id, name').eq('active', true).order('name'),
+    supabase.from('stations').select('id, name, sequence, active, customer_id').order('sequence'),
+  ])
+  if (ce) throw ce
   if (error) throw error
 
-  return <StationsAdmin stations={data ?? []} />
+  return <StationsAdmin stations={stations ?? []} customers={customers ?? []} />
 }

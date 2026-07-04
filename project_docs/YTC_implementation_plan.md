@@ -1205,15 +1205,24 @@ git commit -m "feat: edit history admin page (T3.4)"
 
 ### Task 3.5 🔵 Anyka: Customer-scoped stations & models
 
-Meanwell and Martindale run fully independent production flows — separate model lineups, separate assembly-step sequences. This task introduces a `customers` table, scopes `stations`/`models` to it, and adds a Customer selector to the entry form that filters Station/Model to the selected customer. Real production data collected so far is entirely Meanwell. Extending the admin CRUD screens with a Customer selector is deferred to Milestone 4 (see note at the top of that milestone) — this task only covers schema + entry form.
+Meanwell and Martindale run fully independent production flows — separate model lineups, separate assembly-step sequences. This task introduces a `customers` table, scopes `stations`/`models` to it, and adds a Customer selector to the entry form that filters Station/Model to the selected customer. Real production data collected so far is entirely Meanwell.
+
+> **Correction (implemented 2026-07-04):** this checklist was previously marked complete after PR #27, which only landed the design docs — no code. It has now actually been implemented, including the admin CRUD side. That work was originally deferred to Milestone 4 on the assumption M4 hadn't started yet; in fact M4 (`actions/admin.ts`, `app/admin/stations`, `app/admin/models`) had already shipped by the time this task was implemented, with no `customer_id` awareness at all. Rather than leaving admin "add station"/"add model" broken, the Customer selector for the Stations/Models admin screens was added here instead of as a separate M4 follow-up (see the corrected note at the top of Milestone 4).
 
 **Files:**
 - Create: `supabase/migrations/<timestamp>_customer_scoping.sql`
 - Modify: `supabase/seed.sql` — assign existing seed data to Meanwell, add sample Martindale rows
 - Modify: `types/database.ts` — regenerate after migration
+- Modify: `lib/constants.ts` — `DEFAULT_CUSTOMER_NAME`
 - Modify: `app/entry/page.tsx` — fetch `customers`, include `customer_id` on station/model queries
 - Modify: `components/entry/EntryForm.tsx` — Customer radio group, filtered dropdowns
 - Modify: `actions/entry.ts` — `submitEntry` validates station/model share a customer
+- Create: `components/admin/CustomerTabs.tsx` — shared customer selector for admin screens
+- Modify: `app/admin/stations/page.tsx`, `app/admin/stations/StationsAdmin.tsx` — customer tabs, per-customer sequencing
+- Modify: `app/admin/models/page.tsx`, `app/admin/models/ModelsAdmin.tsx` — customer tabs, station checklist scoped to the model's customer
+- Modify: `app/admin/orders/page.tsx`, `app/admin/orders/OrdersAdmin.tsx` — customer tabs, line-item model dropdown scoped to the order's customer
+- Create: `supabase/migrations/<timestamp>_orders_customer_scoping.sql` — adds `customer_id` to `orders` (NOT NULL, backfilled to Meanwell)
+- Modify: `actions/admin.ts` — `upsertStation`/`upsertModel`/`upsertOrder` take `customerId`; `deleteStation`/`reorderStations` scoped correctly for the new `UNIQUE (customer_id, sequence)` constraint (including a two-phase update fix for a reorder collision bug the new constraint would otherwise introduce); `upsertOrder` validates every line item's model shares the order's own customer (fetched from the DB on update, not trusted from the client)
 
 - [x] **Create the migration**
 
@@ -1270,17 +1279,26 @@ npx supabase gen types typescript --linked > types/database.ts
   - `submitEntry` rejects a station/model pair from different customers
   - `submitEntry` succeeds when station/model share a customer
 
-- [ ] **Manually test**
+- [x] **Retrofit admin CRUD (M4 had already shipped without customer awareness)**
+  - `components/admin/CustomerTabs.tsx` — shared tab selector, used by Stations, Models, and Orders admin screens
+  - `app/admin/stations/page.tsx` / `StationsAdmin.tsx` — fetch `customers`; per-customer sequence numbering, insert-shift, delete re-gap, and drag-reorder
+  - `app/admin/models/page.tsx` / `ModelsAdmin.tsx` — fetch `customers`; station checklist scoped to the form's selected customer
+  - `app/admin/orders/page.tsx` / `OrdersAdmin.tsx` — fetch `customers`; orders list and line-item model dropdown both scoped by customer (discovered mid-implementation: orders had no customer awareness at all, and come in one customer at a time same as stations/models)
+  - `actions/admin.ts` — `upsertStation`/`upsertModel`/`upsertOrder` require `customerId` (immutable after creation); `deleteStation`/`reorderStations` scoped to `customer_id` where relevant; `upsertOrder` validates all line items share the order's customer
+  - `__tests__/admin-actions.test.ts` (new) — customer-scoped sequence shift on insert; two-phase reorder update; order/line-item customer validation on insert and update
+
+- [x] **Manually test**
 
 1. Load `/entry` — confirm Meanwell is selected by default and today's Meanwell stations/models appear unchanged from before this task
 2. Switch to Martindale — confirm Station/Model dropdowns show only the sample Martindale rows, and the previously selected station/model are cleared
 3. Submit an entry as Martindale — confirm it writes correctly and `customer_id` isn't needed on `period_log` (derivable via station/model)
 4. Switch back to Meanwell mid-form — confirm selection resets again
+5. `/admin/stations` and `/admin/models` — confirm customer tabs, per-customer sequencing, and drag-reorder all work without error
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
-git add supabase/ types/database.ts app/entry/page.tsx components/entry/EntryForm.tsx actions/entry.ts __tests__/entry-actions.test.ts
+git add supabase/ types/database.ts lib/constants.ts app/entry/page.tsx components/entry/EntryForm.tsx actions/entry.ts actions/admin.ts app/admin/stations/ app/admin/models/ components/admin/CustomerTabs.tsx __tests__/entry-actions.test.ts __tests__/admin-actions.test.ts
 git commit -m "feat: customer-scoped stations and models (T3.5)"
 ```
 
@@ -1290,7 +1308,7 @@ git commit -m "feat: customer-scoped stations and models (T3.5)"
 
 *These tasks can run in parallel after M2 is complete.*
 
-> **Customer scoping (T3.5) lands first:** by the time this milestone starts, `stations` and `models` already carry a required `customer_id` (see Milestone 3, Task 3.5). The `upsertStation`/`upsertModel` actions and their admin pages below include the Customer field from the start — there's no separate follow-up task for it.
+> **Correction:** this milestone shipped before the customer-scoping design (Milestone 3, Task 3.5) existed, so `upsertStation`/`upsertModel` and their admin pages originally had no `customer_id` awareness. When T3.5 was implemented, it retrofitted a Customer selector onto these already-shipped admin screens directly (see T3.5's "Retrofit admin CRUD" step) rather than as a fresh feature here. A standalone Customers CRUD page (create/rename/deactivate customer records) was not built — the two customers are seeded directly; that remains a future task if a third customer is ever onboarded.
 
 ---
 

@@ -24,8 +24,10 @@ export async function upsertStation(data: {
   name: string
   sequence: number
   active: boolean
+  customerId: string
 }) {
   if (data.id) assertUuid(data.id, 'station id')
+  assertUuid(data.customerId, 'customer id')
   await requireRole('admin')
   const supabase = createAdminClient()
 
@@ -36,11 +38,12 @@ export async function upsertStation(data: {
       .eq('id', data.id)
     if (error) throw error
   } else {
-    // Shift all existing stations at or above the insertion sequence up by 1,
-    // highest first to avoid any ordering issues.
+    // Shift existing stations of the same customer at or above the insertion
+    // sequence up by 1, highest first to avoid any ordering issues.
     const { data: toShift, error: fetchError } = await supabase
       .from('stations')
       .select('id, sequence')
+      .eq('customer_id', data.customerId)
       .gte('sequence', data.sequence)
       .order('sequence', { ascending: false })
     if (fetchError) throw fetchError
@@ -53,7 +56,7 @@ export async function upsertStation(data: {
 
     const { error } = await supabase
       .from('stations')
-      .insert({ name: data.name, sequence: data.sequence, active: data.active })
+      .insert({ name: data.name, sequence: data.sequence, active: data.active, customer_id: data.customerId })
     if (error) throw error
   }
   revalidatePath('/admin/stations')
@@ -64,10 +67,10 @@ export async function deleteStation(id: string) {
   await requireRole('admin')
   const supabase = createAdminClient()
 
-  // Read sequence before deleting so we can re-gap remaining stations
+  // Read sequence + customer before deleting so we can re-gap remaining stations
   const { data: station, error: fetchError } = await supabase
     .from('stations')
-    .select('sequence')
+    .select('sequence, customer_id')
     .eq('id', id)
     .maybeSingle()
   if (fetchError) throw fetchError
@@ -79,10 +82,11 @@ export async function deleteStation(id: string) {
     throw error
   }
 
-  // Close the gap — shift everything above down by 1, lowest first
+  // Close the gap — shift everything above (within the same customer) down by 1, lowest first
   const { data: following, error: followError } = await supabase
     .from('stations')
     .select('id, sequence')
+    .eq('customer_id', station.customer_id)
     .gt('sequence', station.sequence)
     .order('sequence', { ascending: true })
   if (followError) throw followError
@@ -101,6 +105,15 @@ export async function reorderStations(updates: { id: string; sequence: number }[
   await requireRole('admin')
   const supabase = createAdminClient()
 
+  // Two-phase update: move every row to a unique negative placeholder sequence
+  // first, so the final pass never collides with the (customer_id, sequence)
+  // unique constraint mid-loop (e.g. swapping two adjacent stations).
+  for (const [i, u] of updates.entries()) {
+    const { error } = await supabase
+      .from('stations').update({ sequence: -(i + 1) }).eq('id', u.id)
+    if (error) throw error
+  }
+
   for (const u of updates) {
     const { error } = await supabase
       .from('stations').update({ sequence: u.sequence }).eq('id', u.id)
@@ -117,8 +130,10 @@ export async function upsertModel(data: {
   name: string
   active: boolean
   stationIds: string[]
+  customerId: string
 }) {
   if (data.id) assertUuid(data.id, 'model id')
+  assertUuid(data.customerId, 'customer id')
   data.stationIds.forEach((id, i) => assertUuid(id, `stationIds[${i}]`))
   await requireRole('supervisor')
   const supabase = createAdminClient()
@@ -133,7 +148,7 @@ export async function upsertModel(data: {
   } else {
     const { data: inserted, error } = await supabase
       .from('models')
-      .insert({ name: data.name, active: data.active })
+      .insert({ name: data.name, active: data.active, customer_id: data.customerId })
       .select('id')
       .single()
     if (error) throw error
@@ -175,15 +190,38 @@ export async function upsertOrder(data: {
   orderDate: string
   dueDate: string
   active: boolean
+  customerId: string
   lines: { modelId: string; quantity: number }[]
 }) {
   if (data.id) assertUuid(data.id, 'order id')
+  assertUuid(data.customerId, 'customer id')
   assertDate(data.orderDate, 'orderDate')
   assertDate(data.dueDate, 'dueDate')
   if (data.dueDate < data.orderDate) throw new Error('dueDate must be on or after orderDate')
   data.lines.forEach((l, i) => assertUuid(l.modelId, `lines[${i}].modelId`))
   await requireRole('supervisor')
   const supabase = createAdminClient()
+
+  // The order's customer is immutable after creation, so on update the
+  // authoritative value comes from the DB, not the client payload.
+  let orderCustomerId = data.customerId
+  if (data.id) {
+    const { data: existingOrder, error: orderFetchError } = await supabase
+      .from('orders').select('customer_id').eq('id', data.id).maybeSingle()
+    if (orderFetchError) throw orderFetchError
+    if (!existingOrder) throw new Error('Order not found')
+    orderCustomerId = existingOrder.customer_id
+  }
+
+  if (data.lines.length > 0) {
+    const modelIds = [...new Set(data.lines.map(l => l.modelId))]
+    const { data: modelRows, error: modelError } = await supabase
+      .from('models').select('id, customer_id').in('id', modelIds)
+    if (modelError) throw modelError
+    const mismatched = (modelRows ?? []).some(m => m.customer_id !== orderCustomerId)
+    if (mismatched || (modelRows ?? []).length !== modelIds.length)
+      throw new Error('All line items must belong to the order\'s customer')
+  }
 
   if (data.id) {
     const orderId = data.id
@@ -235,6 +273,7 @@ export async function upsertOrder(data: {
         order_date: data.orderDate,
         due_date: data.dueDate,
         active: data.active,
+        customer_id: data.customerId,
       })
       .select('id')
       .single()

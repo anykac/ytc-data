@@ -5,10 +5,12 @@ import ModelsAdmin from './ModelsAdmin'
 export default async function ModelsPage() {
   await requireRole('supervisor')
   const supabase = createAdminClient()
-  const [{ data: models, error: me }, { data: stations, error: se }] = await Promise.all([
-    supabase.from('models').select('id, name, active').order('name'),
-    supabase.from('stations').select('id, name, sequence').eq('active', true).order('sequence'),
+  const [{ data: customers, error: cuErr }, { data: models, error: me }, { data: stations, error: se }] = await Promise.all([
+    supabase.from('customers').select('id, name').eq('active', true).order('name'),
+    supabase.from('models').select('id, name, active, customer_id').order('name'),
+    supabase.from('stations').select('id, name, sequence, customer_id').eq('active', true).order('sequence'),
   ])
+  if (cuErr) throw cuErr
   if (me) throw me
   if (se) throw se
 
@@ -19,5 +21,5 @@ export default async function ModelsPage() {
     : { data: [], error: null }
   if (ce) throw ce
 
-  return <ModelsAdmin models={models ?? []} stations={stations ?? []} configs={configs ?? []} />
+  return <ModelsAdmin models={models ?? []} stations={stations ?? []} configs={configs ?? []} customers={customers ?? []} />
 }

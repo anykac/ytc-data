@@ -5,10 +5,12 @@ import OrdersAdmin from './OrdersAdmin'
 export default async function OrdersPage() {
   await requireRole('supervisor')
   const supabase = createAdminClient()
-  const [{ data: orders, error: oe }, { data: models, error: me }] = await Promise.all([
-    supabase.from('orders').select('id, order_number, order_date, due_date, active').order('order_number'),
-    supabase.from('models').select('id, name').eq('active', true).order('name'),
+  const [{ data: customers, error: ce }, { data: orders, error: oe }, { data: models, error: me }] = await Promise.all([
+    supabase.from('customers').select('id, name').eq('active', true).order('name'),
+    supabase.from('orders').select('id, order_number, order_date, due_date, active, customer_id').order('order_number'),
+    supabase.from('models').select('id, name, customer_id').eq('active', true).order('name'),
   ])
+  if (ce) throw ce
   if (oe) throw oe
   if (me) throw me
 
@@ -18,5 +20,5 @@ export default async function OrdersPage() {
     : { data: [], error: null }
   if (le) throw le
 
-  return <OrdersAdmin orders={orders ?? []} models={models ?? []} lines={lines ?? []} />
+  return <OrdersAdmin orders={orders ?? []} models={models ?? []} lines={lines ?? []} customers={customers ?? []} />
 }

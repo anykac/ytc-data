@@ -1,17 +1,36 @@
 'use client'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { upsertStation, deleteStation, reorderStations } from '@/actions/admin'
 import CrudTable from '@/components/admin/CrudTable'
+import CustomerTabs from '@/components/admin/CustomerTabs'
+import { DEFAULT_CUSTOMER_NAME } from '@/lib/constants'
 
-type Station = { id: string; name: string; sequence: number; active: boolean }
+type Customer = { id: string; name: string }
+type Station = { id: string; name: string; sequence: number; active: boolean; customer_id: string }
 
-export default function StationsAdmin({ stations }: { stations: Station[] }) {
-  const maxSeq = stations.length > 0 ? Math.max(...stations.map((s) => s.sequence)) : 0
-  const blank = (): Omit<Station, 'id'> & { id?: string } => ({ name: '', sequence: maxSeq + 1, active: true })
+export default function StationsAdmin({ stations, customers }: { stations: Station[]; customers: Customer[] }) {
+  const [selectedCustomerId, setSelectedCustomerId] = useState(
+    () => customers.find((c) => c.name === DEFAULT_CUSTOMER_NAME)?.id ?? customers[0]?.id ?? ''
+  )
+
+  const stationsForCustomer = useMemo(
+    () => stations.filter((s) => s.customer_id === selectedCustomerId),
+    [stations, selectedCustomerId]
+  )
+
+  const maxSeq = stationsForCustomer.length > 0 ? Math.max(...stationsForCustomer.map((s) => s.sequence)) : 0
+  const blank = (): Omit<Station, 'id'> & { id?: string } =>
+    ({ name: '', sequence: maxSeq + 1, active: true, customer_id: selectedCustomerId })
 
   const [form, setForm] = useState<ReturnType<typeof blank> | null>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  function selectCustomer(customerId: string) {
+    setSelectedCustomerId(customerId)
+    setForm(null)
+    setError('')
+  }
 
   function edit(s: Station) { setForm({ ...s }); setError('') }
   function toggleActive(s: Station) { submit({ ...s, active: !s.active }) }
@@ -29,7 +48,7 @@ export default function StationsAdmin({ stations }: { stations: Station[] }) {
   }
 
   async function handleReorder(draggedId: string, targetId: string) {
-    const sorted = [...stations].sort((a, b) => a.sequence - b.sequence)
+    const sorted = [...stationsForCustomer].sort((a, b) => a.sequence - b.sequence)
     const dragIdx = sorted.findIndex((s) => s.id === draggedId)
     const targetIdx = sorted.findIndex((s) => s.id === targetId)
     if (dragIdx === -1 || targetIdx === -1 || dragIdx === targetIdx) return
@@ -52,7 +71,8 @@ export default function StationsAdmin({ stations }: { stations: Station[] }) {
     if (!data) return
     setSaving(true); setError('')
     try {
-      await upsertStation(data as Parameters<typeof upsertStation>[0])
+      const { customer_id, ...rest } = data
+      await upsertStation({ ...rest, customerId: customer_id })
       setForm(null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed')
@@ -115,6 +135,7 @@ export default function StationsAdmin({ stations }: { stations: Station[] }) {
             + New station
           </button>
         </div>
+        <CustomerTabs customers={customers} selectedId={selectedCustomerId} onSelect={selectCustomer} />
         {error && !form && <p className="text-red-600 text-sm">{error}</p>}
         <CrudTable
           columns={[
@@ -122,7 +143,7 @@ export default function StationsAdmin({ stations }: { stations: Station[] }) {
             { key: 'name', label: 'Name' },
             { key: 'active', label: 'Status' },
           ]}
-          rows={stations}
+          rows={stationsForCustomer}
           onEdit={edit}
           onToggleActive={toggleActive}
           onDelete={handleDelete}
