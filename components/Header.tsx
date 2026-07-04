@@ -11,11 +11,12 @@ export default async function Header() {
   let role: string | null = null
   if (user) {
     const admin = createAdminClient()
-    const { data } = await admin
+    const { data, error: roleError } = await admin
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .maybeSingle()
+    if (roleError) console.error('[Header] user_roles query failed:', roleError.message)
     role = data?.role ?? null
   }
 

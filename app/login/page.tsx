@@ -13,18 +13,19 @@ export default async function LoginPage({
   ])
   const error = params.error
 
-  if (user && !error) redirect('/dashboard')
+  if (user && error !== 'unauthorized') redirect('/dashboard')
 
   async function signIn() {
     'use server'
     const supabase = await createClient()
-    const { data } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/api/auth/callback`,
         queryParams: { prompt: 'select_account' },
       },
     })
+    if (error) console.error('[signIn] OAuth error:', error.message)
     if (data.url) redirect(data.url)
     redirect('/login?error=auth_failed')
   }
@@ -33,13 +34,14 @@ export default async function LoginPage({
     'use server'
     const supabase = await createClient()
     await supabase.auth.signOut({ scope: 'local' })
-    const { data } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/api/auth/callback`,
         queryParams: { prompt: 'select_account' },
       },
     })
+    if (error) console.error('[switchAccount] OAuth error:', error.message)
     if (data.url) redirect(data.url)
     redirect('/login?error=auth_failed')
   }
