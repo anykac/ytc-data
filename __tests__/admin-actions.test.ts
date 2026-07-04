@@ -150,6 +150,7 @@ describe('inviteUser', () => {
     const result = await inviteUser('new@example.com')
 
     expect(result.error).toBeUndefined()
+    expect(result.userId).toBe(validId(30))
     expect(inviteMock).toHaveBeenCalledWith('new@example.com')
     expect(upsertMock).toHaveBeenCalledWith(
       { user_id: validId(30), role: 'supervisor' },
@@ -223,5 +224,20 @@ describe('deleteUser', () => {
 
     expect(result.error).toBeUndefined()
     expect(deleteUserMock).toHaveBeenCalledWith(validId(2))
+  })
+
+  it('surfaces an error when the auth deletion itself fails', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: validId(1) }, role: 'admin' })
+    const deleteUserMock = jest.fn().mockResolvedValue({ error: new Error('user not found') })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: 'supervisor' }, error: null }) }) }),
+      }),
+      auth: { admin: { deleteUser: deleteUserMock } },
+    })
+
+    const result = await deleteUser(validId(2))
+
+    expect(result.error).toBe('user not found')
   })
 })
