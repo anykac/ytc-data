@@ -1,14 +1,15 @@
 'use client'
 import { useState } from 'react'
-import { setUserRole, removeUserRole, inviteUser } from '@/actions/admin'
+import { setUserRole, removeUserRole, inviteUser, deleteUser } from '@/actions/admin'
 
 type User = { id: string; email: string; role: 'supervisor' | 'admin' | null }
 
-export default function AccountsAdmin({ users }: { users: User[] }) {
+export default function AccountsAdmin({ users: initialUsers }: { users: User[] }) {
+  const [users, setUsers] = useState(initialUsers)
   const [saving, setSaving] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [roles, setRoles] = useState<Record<string, string>>(
-    Object.fromEntries(users.map((u) => [u.id, u.role ?? 'none']))
+    Object.fromEntries(initialUsers.map((u) => [u.id, u.role ?? 'none']))
   )
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviting, setInviting] = useState(false)
@@ -28,6 +29,20 @@ export default function AccountsAdmin({ users }: { users: User[] }) {
       setRoles((r) => ({ ...r, [userId]: value }))
     }
     setSaving(null)
+  }
+
+  async function handleDelete(u: User) {
+    if (!confirm(`Permanently delete the account for "${u.email}"? This cannot be undone.`)) return
+    setSaving(u.id)
+    setErrors((e) => ({ ...e, [u.id]: '' }))
+    const result = await deleteUser(u.id)
+    if (result.error) {
+      setErrors((prev) => ({ ...prev, [u.id]: result.error! }))
+      setSaving(null)
+    } else {
+      setUsers((list) => list.filter((x) => x.id !== u.id))
+      setSaving(null)
+    }
   }
 
   async function handleInvite(e: React.FormEvent) {
@@ -79,6 +94,7 @@ export default function AccountsAdmin({ users }: { users: User[] }) {
                 <th className="px-4 py-3 font-medium">Email</th>
                 <th className="px-4 py-3 font-medium">Current role</th>
                 <th className="px-4 py-3 font-medium">Set role</th>
+                <th className="px-4 py-3 font-medium"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -101,6 +117,17 @@ export default function AccountsAdmin({ users }: { users: User[] }) {
                       {saving === u.id && <span className="text-xs text-gray-400">Saving…</span>}
                       {errors[u.id] && <span className="text-xs text-red-500">{errors[u.id]}</span>}
                     </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    {roles[u.id] !== 'admin' && (
+                      <button
+                        onClick={() => handleDelete(u)}
+                        disabled={saving === u.id}
+                        className="text-xs font-medium text-red-500 hover:text-red-700 disabled:opacity-50 cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
