@@ -3,6 +3,22 @@ import { requireRole } from '@/lib/auth/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { hashPassword } from '@/lib/auth/lead-auth'
 import { revalidatePath } from 'next/cache'
+import { unstable_rethrow } from 'next/navigation'
+
+// Server Actions have their thrown error messages redacted to a generic digest
+// in production builds. Business/validation errors need to reach the user, so
+// actions catch internally and return { error } instead of throwing.
+type ActionResult = { error?: string }
+
+async function toResult(fn: () => Promise<void>): Promise<ActionResult> {
+  try {
+    await fn()
+    return {}
+  } catch (e) {
+    unstable_rethrow(e)
+    return { error: e instanceof Error ? e.message : 'Something went wrong' }
+  }
+}
 
 // ── Input validation ──────────────────────────────────────────────────────────
 
@@ -25,7 +41,8 @@ export async function upsertStation(data: {
   sequence: number
   active: boolean
   customerId: string
-}) {
+}): Promise<ActionResult> {
+  return toResult(async () => {
   if (data.id) assertUuid(data.id, 'station id')
   assertUuid(data.customerId, 'customer id')
   await requireRole('admin')
@@ -60,9 +77,11 @@ export async function upsertStation(data: {
     if (error) throw error
   }
   revalidatePath('/admin/stations')
+  })
 }
 
-export async function deleteStation(id: string) {
+export async function deleteStation(id: string): Promise<ActionResult> {
+  return toResult(async () => {
   assertUuid(id, 'station id')
   await requireRole('admin')
   const supabase = createAdminClient()
@@ -98,9 +117,11 @@ export async function deleteStation(id: string) {
   }
 
   revalidatePath('/admin/stations')
+  })
 }
 
-export async function reorderStations(updates: { id: string; sequence: number }[]) {
+export async function reorderStations(updates: { id: string; sequence: number }[]): Promise<ActionResult> {
+  return toResult(async () => {
   updates.forEach((u, i) => assertUuid(u.id, `updates[${i}].id`))
   await requireRole('admin')
   const supabase = createAdminClient()
@@ -121,6 +142,7 @@ export async function reorderStations(updates: { id: string; sequence: number }[
   }
 
   revalidatePath('/admin/stations')
+  })
 }
 
 // ── Models ────────────────────────────────────────────────────────────────────
@@ -131,7 +153,8 @@ export async function upsertModel(data: {
   active: boolean
   stationIds: string[]
   customerId: string
-}) {
+}): Promise<ActionResult> {
+  return toResult(async () => {
   if (data.id) assertUuid(data.id, 'model id')
   assertUuid(data.customerId, 'customer id')
   data.stationIds.forEach((id, i) => assertUuid(id, `stationIds[${i}]`))
@@ -180,6 +203,7 @@ export async function upsertModel(data: {
   }
 
   revalidatePath('/admin/models')
+  })
 }
 
 // ── Orders ────────────────────────────────────────────────────────────────────
@@ -192,7 +216,8 @@ export async function upsertOrder(data: {
   active: boolean
   customerId: string
   lines: { modelId: string; quantity: number }[]
-}) {
+}): Promise<ActionResult> {
+  return toResult(async () => {
   if (data.id) assertUuid(data.id, 'order id')
   assertUuid(data.customerId, 'customer id')
   assertDate(data.orderDate, 'orderDate')
@@ -289,6 +314,7 @@ export async function upsertOrder(data: {
   }
 
   revalidatePath('/admin/orders')
+  })
 }
 
 // ── Leads ─────────────────────────────────────────────────────────────────────
@@ -299,7 +325,8 @@ export async function upsertLead(data: {
   // undefined = leave password unchanged; empty string throws; any non-empty string = set new password
   password?: string
   active: boolean
-}) {
+}): Promise<ActionResult> {
+  return toResult(async () => {
   if (data.id) assertUuid(data.id, 'lead id')
   await requireRole('supervisor')
   const supabase = createAdminClient()
@@ -324,11 +351,13 @@ export async function upsertLead(data: {
     if (error) throw error
   }
   revalidatePath('/admin/leads')
+  })
 }
 
 // ── User roles (Admin only) ───────────────────────────────────────────────────
 
-export async function setUserRole(userId: string, role: 'supervisor' | 'admin') {
+export async function setUserRole(userId: string, role: 'supervisor' | 'admin'): Promise<ActionResult> {
+  return toResult(async () => {
   assertUuid(userId, 'userId')
   await requireRole('admin')
   const supabase = createAdminClient()
@@ -337,9 +366,11 @@ export async function setUserRole(userId: string, role: 'supervisor' | 'admin') 
     .upsert({ user_id: userId, role }, { onConflict: 'user_id' })
   if (error) throw error
   revalidatePath('/admin/accounts')
+  })
 }
 
-export async function removeUserRole(userId: string) {
+export async function removeUserRole(userId: string): Promise<ActionResult> {
+  return toResult(async () => {
   assertUuid(userId, 'userId')
   const { user } = await requireRole('admin')
   if (userId === user.id) throw new Error('Cannot remove your own admin role')
@@ -347,13 +378,16 @@ export async function removeUserRole(userId: string) {
   const { error } = await supabase.from('user_roles').delete().eq('user_id', userId)
   if (error) throw error
   revalidatePath('/admin/accounts')
+  })
 }
 
-export async function inviteUser(email: string) {
+export async function inviteUser(email: string): Promise<ActionResult> {
+  return toResult(async () => {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new Error('Invalid email address')
   await requireRole('admin')
   const supabase = createAdminClient()
   const { error } = await supabase.auth.admin.inviteUserByEmail(email)
   if (error) throw error
+  })
 }

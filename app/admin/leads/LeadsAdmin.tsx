@@ -17,20 +17,16 @@ export default function LeadsAdmin({ leads }: { leads: Lead[] }) {
 
   async function submit(data: Form) {
     setSaving(true); setError('')
-    try {
-      await upsertLead({
-        id: data.id,
-        name: data.name,
-        // undefined = leave password unchanged; never send empty string (action throws)
-        password: data.password.length > 0 ? data.password : undefined,
-        active: data.active,
-      })
-      setForm(null)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Save failed')
-    } finally {
-      setSaving(false)
-    }
+    const result = await upsertLead({
+      id: data.id,
+      name: data.name,
+      // undefined = leave password unchanged; never send empty string (action rejects)
+      password: data.password.length > 0 ? data.password : undefined,
+      active: data.active,
+    })
+    if (result.error) setError(result.error)
+    else setForm(null)
+    setSaving(false)
   }
 
   return (

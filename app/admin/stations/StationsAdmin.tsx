@@ -38,13 +38,9 @@ export default function StationsAdmin({ stations, customers }: { stations: Stati
   async function handleDelete(s: Station) {
     if (!confirm(`Permanently delete "${s.name}"? This cannot be undone.`)) return
     setSaving(true); setError('')
-    try {
-      await deleteStation(s.id)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Delete failed')
-    } finally {
-      setSaving(false)
-    }
+    const result = await deleteStation(s.id)
+    if (result.error) setError(result.error)
+    setSaving(false)
   }
 
   async function handleReorder(draggedId: string, targetId: string) {
@@ -58,27 +54,19 @@ export default function StationsAdmin({ stations, customers }: { stations: Stati
     reordered.splice(targetIdx, 0, moved)
 
     setSaving(true); setError('')
-    try {
-      await reorderStations(reordered.map((s, i) => ({ id: s.id, sequence: i + 1 })))
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Reorder failed')
-    } finally {
-      setSaving(false)
-    }
+    const result = await reorderStations(reordered.map((s, i) => ({ id: s.id, sequence: i + 1 })))
+    if (result.error) setError(result.error)
+    setSaving(false)
   }
 
   async function submit(data: typeof form) {
     if (!data) return
     setSaving(true); setError('')
-    try {
-      const { customer_id, ...rest } = data
-      await upsertStation({ ...rest, customerId: customer_id })
-      setForm(null)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Save failed')
-    } finally {
-      setSaving(false)
-    }
+    const { customer_id, ...rest } = data
+    const result = await upsertStation({ ...rest, customerId: customer_id })
+    if (result.error) setError(result.error)
+    else setForm(null)
+    setSaving(false)
   }
 
   const isNew = form && !form.id
