@@ -10,10 +10,11 @@ import { unstable_rethrow } from 'next/navigation'
 // actions catch internally and return { error } instead of throwing.
 type ActionResult = { error?: string }
 
-async function toResult(fn: () => Promise<void>): Promise<ActionResult> {
+async function toResult(fn: () => Promise<void>): Promise<ActionResult>
+async function toResult<T extends object>(fn: () => Promise<T>): Promise<ActionResult & T>
+async function toResult(fn: () => Promise<object | void>): Promise<ActionResult> {
   try {
-    await fn()
-    return {}
+    return { ...(await fn()) }
   } catch (e) {
     unstable_rethrow(e)
     return { error: e instanceof Error ? e.message : 'Something went wrong' }
@@ -381,13 +382,41 @@ export async function removeUserRole(userId: string): Promise<ActionResult> {
   })
 }
 
-export async function inviteUser(email: string): Promise<ActionResult> {
+export async function deleteUser(userId: string): Promise<ActionResult> {
+  return toResult(async () => {
+  assertUuid(userId, 'userId')
+  const { user } = await requireRole('admin')
+  if (userId === user.id) throw new Error('Cannot delete your own account')
+  const supabase = createAdminClient()
+
+  const { data, error: roleFetchError } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (roleFetchError) throw roleFetchError
+  if (data?.role === 'admin') throw new Error('Cannot delete an admin account')
+
+  const { error } = await supabase.auth.admin.deleteUser(userId)
+  if (error) throw error
+  revalidatePath('/admin/accounts')
+  })
+}
+
+export async function inviteUser(email: string): Promise<ActionResult & { userId?: string }> {
   return toResult(async () => {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new Error('Invalid email address')
   await requireRole('admin')
   const supabase = createAdminClient()
-  const { error } = await supabase.auth.admin.inviteUserByEmail(email)
+  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email)
   if (error) throw error
+
+  const { error: roleError } = await supabase
+    .from('user_roles')
+    .upsert({ user_id: data.user.id, role: 'supervisor' }, { onConflict: 'user_id' })
+  if (roleError) throw roleError
+  revalidatePath('/admin/accounts')
+  return { userId: data.user.id }
   })
 }

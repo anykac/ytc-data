@@ -2,7 +2,7 @@ jest.mock('@/lib/auth/session', () => ({ requireRole: jest.fn() }))
 jest.mock('@/lib/supabase/admin', () => ({ createAdminClient: jest.fn() }))
 jest.mock('next/cache', () => ({ revalidatePath: jest.fn() }))
 
-import { upsertStation, reorderStations, upsertOrder } from '@/actions/admin'
+import { upsertStation, reorderStations, upsertOrder, inviteUser, deleteUser } from '@/actions/admin'
 import { requireRole } from '@/lib/auth/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -131,5 +131,113 @@ describe('upsertOrder', () => {
     // server must use the order's own (DB) customer, not this value, to validate lines.
     const result = await upsertOrder({ ...baseOrder, id: orderId, customerId: MARTINDALE })
     expect(result.error).toMatch(/customer/i)
+  })
+})
+
+describe('inviteUser', () => {
+  it('assigns the supervisor role immediately after a successful invite', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: 'admin-1' }, role: 'admin' })
+    const inviteMock = jest.fn().mockResolvedValue({ data: { user: { id: validId(30) } }, error: null })
+    const upsertMock = jest.fn().mockResolvedValue({ error: null })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      auth: { admin: { inviteUserByEmail: inviteMock } },
+      from: (table: string) => {
+        if (table === 'user_roles') return { upsert: upsertMock }
+        throw new Error(`unexpected table ${table}`)
+      },
+    })
+
+    const result = await inviteUser('new@example.com')
+
+    expect(result.error).toBeUndefined()
+    expect(result.userId).toBe(validId(30))
+    expect(inviteMock).toHaveBeenCalledWith('new@example.com')
+    expect(upsertMock).toHaveBeenCalledWith(
+      { user_id: validId(30), role: 'supervisor' },
+      { onConflict: 'user_id' }
+    )
+  })
+
+  it('surfaces an error if role assignment fails after a successful invite', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: 'admin-1' }, role: 'admin' })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      auth: {
+        admin: {
+          inviteUserByEmail: jest.fn().mockResolvedValue({ data: { user: { id: validId(30) } }, error: null }),
+        },
+      },
+      from: () => ({ upsert: jest.fn().mockResolvedValue({ error: new Error('db down') }) }),
+    })
+
+    const result = await inviteUser('new@example.com')
+    expect(result.error).toBe('db down')
+  })
+})
+
+describe('deleteUser', () => {
+  it('rejects deleting your own account', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: validId(1) }, role: 'admin' })
+
+    const result = await deleteUser(validId(1))
+    expect(result.error).toMatch(/own account/i)
+  })
+
+  it('rejects deleting an account with the admin role', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: validId(1) }, role: 'admin' })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: 'admin' }, error: null }) }) }),
+      }),
+    })
+
+    const result = await deleteUser(validId(2))
+    expect(result.error).toMatch(/admin account/i)
+  })
+
+  it('deletes the auth user when the target is a supervisor', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: validId(1) }, role: 'admin' })
+    const deleteUserMock = jest.fn().mockResolvedValue({ error: null })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: 'supervisor' }, error: null }) }) }),
+      }),
+      auth: { admin: { deleteUser: deleteUserMock } },
+    })
+
+    const result = await deleteUser(validId(2))
+
+    expect(result.error).toBeUndefined()
+    expect(deleteUserMock).toHaveBeenCalledWith(validId(2))
+  })
+
+  it('deletes the auth user when the target has no role assigned', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: validId(1) }, role: 'admin' })
+    const deleteUserMock = jest.fn().mockResolvedValue({ error: null })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
+      }),
+      auth: { admin: { deleteUser: deleteUserMock } },
+    })
+
+    const result = await deleteUser(validId(2))
+
+    expect(result.error).toBeUndefined()
+    expect(deleteUserMock).toHaveBeenCalledWith(validId(2))
+  })
+
+  it('surfaces an error when the auth deletion itself fails', async () => {
+    ;(requireRole as jest.Mock).mockResolvedValue({ user: { id: validId(1) }, role: 'admin' })
+    const deleteUserMock = jest.fn().mockResolvedValue({ error: new Error('user not found') })
+    ;(createAdminClient as jest.Mock).mockReturnValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: 'supervisor' }, error: null }) }) }),
+      }),
+      auth: { admin: { deleteUser: deleteUserMock } },
+    })
+
+    const result = await deleteUser(validId(2))
+
+    expect(result.error).toBe('user not found')
   })
 })
