@@ -19,7 +19,7 @@ export default function PipelineView({ rows }: { rows: PipelineRow[] }) {
           <tr>
             <th className="px-4 py-3 font-medium">Station</th>
             <th className="px-4 py-3 font-medium text-right">Attainment %</th>
-            <th className="px-4 py-3 font-medium text-right">WIP In</th>
+            <th className="px-4 py-3 font-medium text-right">WIP In (Tambak)</th>
             <th className="px-4 py-3 font-medium text-right">Gap to Goal</th>
           </tr>
         </thead>
