@@ -8,7 +8,7 @@ import Combobox from '@/components/ui/Combobox'
 import { PERIOD_ORDER, DEFAULT_CUSTOMER_NAME } from '@/lib/constants'
 
 const INPUT_CLS = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900'
-const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900'
+const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 cursor-pointer'
 
 type Customer = { id: string; name: string }
 type Station = { id: string; name: string; sequence: number; customer_id: string }
@@ -307,7 +307,7 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
         <button
           type="submit"
           disabled={isPending}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors"
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors cursor-pointer"
         >
           {isPending ? 'Submitting…' : 'Submit Entry'}
         </button>
@@ -315,7 +315,7 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
         <button
           type="button"
           onClick={() => setShowEditDrawer(true)}
-          className="w-full text-sm text-blue-600 hover:text-blue-800 text-center"
+          className="w-full text-sm text-blue-600 hover:text-blue-800 text-center cursor-pointer"
         >
           Edit previous entry
         </button>
@@ -323,6 +323,7 @@ export default function EntryForm({ customers, stations, models, leads }: Props)
 
       {showEditDrawer && (
         <EditEntryDrawer
+          customers={customers}
           stations={stations}
           leads={leads}
           onClose={() => setShowEditDrawer(false)}

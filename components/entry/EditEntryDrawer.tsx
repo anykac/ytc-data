@@ -1,13 +1,14 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useTransition, useState, useMemo } from 'react'
 import { searchEntries, editEntry, type EditResult } from '@/actions/entry'
-import { PERIOD_ORDER as PERIODS } from '@/lib/constants'
+import { PERIOD_ORDER as PERIODS, DEFAULT_CUSTOMER_NAME } from '@/lib/constants'
 
 const INPUT_CLS = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900'
-const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900'
+const BASE_SELECT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 cursor-pointer'
 
-type Station = { id: string; name: string }
+type Customer = { id: string; name: string }
+type Station = { id: string; name: string; customer_id: string }
 type Lead = { id: string; name: string }
 
 type NameRelation = { name: string } | { name: string }[] | null
@@ -32,6 +33,7 @@ function relName(rel: NameRelation): string {
 }
 
 type Props = {
+  customers: Customer[]
   stations: Station[]
   leads: Lead[]
   onClose: () => void
@@ -61,10 +63,23 @@ function editFormFromRow(row: SearchResultRow): EditFormState {
   }
 }
 
-export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
+export default function EditEntryDrawer({ customers, stations, leads, onClose }: Props) {
+  const [customerId, setCustomerId] = useState(
+    () => customers.find(c => c.name === DEFAULT_CUSTOMER_NAME)?.id ?? customers[0]?.id ?? ''
+  )
   const [stationId, setStationId] = useState('')
   const [period, setPeriod] = useState<string>(PERIODS[0])
   const [date, setDate] = useState(today())
+
+  const filteredStations = useMemo(
+    () => stations.filter(s => s.customer_id === customerId),
+    [stations, customerId]
+  )
+
+  function selectCustomer(id: string) {
+    setCustomerId(id)
+    setStationId('')
+  }
   const [results, setResults] = useState<SearchResultRow[] | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [isSearching, startSearch] = useTransition()
@@ -139,7 +154,7 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            className="text-gray-400 hover:text-gray-600 text-xl leading-none cursor-pointer"
             aria-label="Close"
           >
             ×
@@ -150,6 +165,23 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
           <>
             <form onSubmit={handleSearch} className="space-y-4">
               <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Customer</label>
+                <div className="flex gap-4">
+                  {customers.map(c => (
+                    <label key={c.id} className="flex items-center gap-2 text-sm text-gray-900">
+                      <input
+                        type="radio"
+                        name="edit-customer"
+                        checked={customerId === c.id}
+                        onChange={() => selectCustomer(c.id)}
+                      />
+                      {c.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">Station</label>
                 <select
                   required
@@ -158,7 +190,7 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
                   className={BASE_SELECT}
                 >
                   <option value="" className="text-gray-400">Select station</option>
-                  {stations.map(s => (
+                  {filteredStations.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
@@ -193,7 +225,7 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
               <button
                 type="submit"
                 disabled={isSearching}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors"
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors cursor-pointer"
               >
                 {isSearching ? 'Searching…' : 'Search'}
               </button>
@@ -263,7 +295,7 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
             <button
               type="button"
               onClick={() => { setSelected(null); setEditForm(null); setEditResult(null) }}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              className="text-sm text-blue-600 hover:text-blue-800 cursor-pointer"
             >
               ← Back to results
             </button>
@@ -333,7 +365,7 @@ export default function EditEntryDrawer({ stations, leads, onClose }: Props) {
             <button
               type="submit"
               disabled={isSaving}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors"
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors cursor-pointer"
             >
               {isSaving ? 'Saving…' : 'Save'}
             </button>
