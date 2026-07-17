@@ -1,7 +1,7 @@
 -- Dev seed data — run manually, not in CI
 -- Lead password is "test1234"
 
-INSERT INTO customers (name) VALUES ('Meanwell'), ('Martindale');
+INSERT INTO customers (name) VALUES ('Meanwell'), ('Martindale'), ('Other');
 
 INSERT INTO stations (name, sequence, customer_id) VALUES
   ('Station 1', 1, (SELECT id FROM customers WHERE name = 'Meanwell')),
