@@ -33,7 +33,7 @@ function assertDate(val: string, field: string) {
     throw new Error(`Invalid ${field}`)
 }
 
-// ── Stations (admin only) ─────────────────────────────────────────────────────
+// ── Stations ─────────────────────────────────────────────────────────────────
 
 export async function upsertStation(data: {
   id?: string
@@ -45,7 +45,7 @@ export async function upsertStation(data: {
   return toResult(async () => {
   if (data.id) assertUuid(data.id, 'station id')
   assertUuid(data.customerId, 'customer id')
-  await requireRole('admin')
+  await requireRole('supervisor')
   const supabase = createAdminClient()
 
   if (data.id) {
@@ -83,7 +83,7 @@ export async function upsertStation(data: {
 export async function deleteStation(id: string): Promise<ActionResult> {
   return toResult(async () => {
   assertUuid(id, 'station id')
-  await requireRole('admin')
+  await requireRole('supervisor')
   const supabase = createAdminClient()
 
   // Read sequence + customer before deleting so we can re-gap remaining stations
@@ -123,7 +123,7 @@ export async function deleteStation(id: string): Promise<ActionResult> {
 export async function reorderStations(updates: { id: string; sequence: number }[]): Promise<ActionResult> {
   return toResult(async () => {
   updates.forEach((u, i) => assertUuid(u.id, `updates[${i}].id`))
-  await requireRole('admin')
+  await requireRole('supervisor')
   const supabase = createAdminClient()
 
   // Two-phase update: move every row to a unique negative placeholder sequence
